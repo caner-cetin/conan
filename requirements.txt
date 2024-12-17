@@ -1,4 +1,4 @@
-dearpygui==1.10.0
 numpy==1.26.4
-essentia-tensorflow==2.1b6.dev1177
+essentia-tensorflow==2.1b6.dev1110
 PySide6==6.8.1
+tinytag==2.0.0

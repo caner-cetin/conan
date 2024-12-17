@@ -90,7 +90,7 @@ class Classifier:
 
         top_n_idx = np.argsort(acts)[::-1][:n]
         return [processed_genres[idx] for idx in top_n_idx], [
-            acts[idx] for idx in top_n_idx
+            float(acts[idx]) for idx in top_n_idx
         ]
 
     def aggressive(self, audio: NDArray[np.float32]) -> list[float]:

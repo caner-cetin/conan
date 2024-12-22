@@ -2,6 +2,7 @@ from typing import (
     Any,
     Literal,
     Optional,
+    TypeAlias,
 )
 
 import numpy as np
@@ -14,8 +15,7 @@ class MonoLoader:
         sampleRate: int = 44100,
         resampleQuality: int = 4,
     ) -> None: ...
-    def compute(self) -> tuple[Any]: ...
-    def __call__(self, *args: Any, **kwds: Any) -> NDArray[np.float32]: ...
+    def __call__(self) -> NDArray[np.float32]: ...
     def configure(
         self, sampleRate: float, resampleQuality: int, filename: str
     ) -> None: ...
@@ -27,28 +27,26 @@ class TensorflowPredict2D:
         input: str = "model/Placeholder",
         output: str = "model/Sigmoid",
     ) -> None: ...
-    def __call__(self, *args: Any, **kwds: Any) -> NDArray[np.float32]: ...
+    def __call__(self, features: NDArray[np.float32]) -> NDArray[np.float32]: ...
 
 class TensorflowPredictEffnetDiscogs:
     def __init__(
         self,
-        graphFilename: Optional[str] = None,
-        input: Optional[str] = "model/Placeholder",
-        output: Optional[str] = "model/Sigmoid",
-        patchHopSize: Optional[int] = None
+        graphFilename: str | None = None,
+        input: str = "model/Placeholder",
+        output: str = "model/Sigmoid",
+        patchHopSize: int | None = None
     ) -> None: ...
-    def compute(self, features: Any) -> tuple[Any]: ...
-    def __call__(self, *args: Any, **kwds: Any) -> NDArray[np.float32]: ...
+    def __call__(self, signal: NDArray[np.float32]) -> NDArray[np.float32]: ...
 
 class TensorflowPredictMusiCNN:
     def __init__(
         self,
-        graphFilename: Optional[str] = None,
-        input: Optional[str] = "model/Placeholder",
-        output: Optional[str] = "model/Sigmoid",
+        graphFilename: str | None = None,
+        input: str = "model/Placeholder",
+        output: str = "model/Sigmoid",
     ) -> None: ...
-    def compute(self, features: Any) -> tuple[Any]: ...
-    def __call__(self, *args: Any, **kwds: Any) -> Any: ...
+    def __call__(self, signal: NDArray[np.float32]) -> NDArray[Any]: ... # pyright: ignore[reportExplicitAny] I cant type hint NDArray[NDArray[np.float32]], this is a 2D array.
 
 class Loudness:
     def __init__(self) -> None: ...

@@ -4,19 +4,22 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import final
-from typing_extensions import override
 
 import essentia.standard as es
 import numpy as np
+from dotenv import load_dotenv
 from numpy.typing import NDArray
 from PySide6.QtCore import (
+    QSize,
     Qt,
     QThread,
     Signal,
     Slot,
 )
+from PySide6.QtGui import QMovie, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QBoxLayout,
     QFileDialog,
     QGridLayout,
     QGroupBox,
@@ -30,17 +33,15 @@ from PySide6.QtWidgets import (
     QSlider,
     QTextEdit,
     QVBoxLayout,
-    QBoxLayout,
     QWidget,
 )
+from tinytag import TinyTag
+from typing_extensions import override
 
 from constants import AudioFeatures
 from models import Classifier
-from tinytag import TinyTag
-from dotenv import load_dotenv
 from player import Foobar2K, TrackInfo
 from templates import TrackDisplayTemplate
-
 
 
 @final
@@ -87,9 +88,7 @@ class AnalysisWorker(QThread):
         )
         audio: NDArray[np.float32] = self.loader()
         self.loader.configure(
-            sampleRate=44100,
-            resampleQuality=4,
-            filename=str(audio_path)
+            sampleRate=44100, resampleQuality=4, filename=str(audio_path)
         )
         audio44k: NDArray[np.float32] = self.loader()
         # short explanation: remove the DC component from the audio signal for removing the noise from the audio.
@@ -137,11 +136,11 @@ class AnalysisWorker(QThread):
 
         _, mfcc_coeffs = self.mfcc(audio)
         # https://essentia.upf.edu/reference/streaming_OnsetRate.html
-        # Please note that due to a dependence on the Onsets algorithm, this algorithm is only valid for audio signals with a sampling rate of 44100Hz. 
+        # Please note that due to a dependence on the Onsets algorithm, this algorithm is only valid for audio signals with a sampling rate of 44100Hz.
         # This algorithm throws an exception if the input signal is empty.
         onset_rate, _ = self.onset_rate(audio44k)
-        
-        tag: TinyTag = TinyTag.get(audio_path) # pyright: ignore[reportUnknownMemberType]
+
+        tag: TinyTag = TinyTag.get(audio_path)  # pyright: ignore[reportUnknownMemberType]
         return AudioFeatures(
             bpm=float(bpm),
             rhythm_strength=float(rhythm_strength),
@@ -163,12 +162,12 @@ class AnalysisWorker(QThread):
             #   def tolist(self) -> Any: ...
             #   i have no mouth and i must scream
             #   these are all 1D float arrays
-            mfcc_mean=np.mean(mfcc_coeffs, axis=0).tolist(), # pyright: ignore[reportAny]
-            mfcc_var=np.var(mfcc_coeffs, axis=0).tolist(), # pyright: ignore[reportAny]
-            onset_rate=onset_rate.tolist(), # pyright: ignore[reportAny],
-            metadata=tag.as_dict()
+            mfcc_mean=np.mean(mfcc_coeffs, axis=0).tolist(),  # pyright: ignore[reportAny]
+            mfcc_var=np.var(mfcc_coeffs, axis=0).tolist(),  # pyright: ignore[reportAny]
+            onset_rate=onset_rate.tolist(),  # pyright: ignore[reportAny],
+            metadata=tag.as_dict(),
         )
-        
+
     @override
     def run(self):
         audio_patterns = ["*.mp3", "*.wav", "*.flac", "*.m4a"]
@@ -189,9 +188,10 @@ class AnalysisWorker(QThread):
 
         self.finished.emit()
 
+
 @final
 class WeightSlider(QWidget):
-    def __init__(self, label: str, parent: QWidget | None  =None):
+    def __init__(self, label: str, parent: QWidget | None = None):
         super().__init__(parent)
         layout = QHBoxLayout()
         self.label = QLabel(label)
@@ -200,7 +200,7 @@ class WeightSlider(QWidget):
         self.slider.setValue(100)
         self.value_label = QLabel("1.0")
 
-        _ = self.slider.valueChanged.connect(self._update_value)
+        self.slider.valueChanged.connect(self._update_value)
 
         layout.addWidget(self.label)
         layout.addWidget(self.slider)
@@ -214,14 +214,15 @@ class WeightSlider(QWidget):
     def value(self) -> float:
         return self.slider.value() / 100
 
+
 @final
 class MusicAnalyzer(QMainWindow):
-    
-    
-    def __init__(self):
+    def __init__(self, app: QApplication):
         super().__init__()
         self.tracks_features: dict[str, AudioFeatures] = {}
+        self.app = app
         self.f2k = Foobar2K(self)
+        self.app.aboutToQuit.connect(self.f2k.cleanup)
         self.setup_ui()
         self.apply_styles()
 
@@ -260,23 +261,12 @@ class MusicAnalyzer(QMainWindow):
         self.track_filter.setMaximumHeight(30)
         self.track_filter.setPlaceholderText("Filter tracks...")
         self.tracks_list = QListWidget()
-        self.player_layout = QVBoxLayout()
-        self.play_button = QPushButton()
-        self.play_button.clicked.connect(self.f2k.play)
-        self.player_layout.addWidget(self.play_button)
 
         track_list_container.addWidget(self.track_filter)
         track_list_container.addWidget(self.tracks_list)
-        track_list_container.addLayout(self.player_layout)
-
-        # Right side - Features and similar tracks
-        self.features_text = QTextEdit()
-        self.similar_tracks_text = QTextEdit()
-        self.features_text.setReadOnly(True)
-        self.similar_tracks_text.setReadOnly(True)
+        track_list_container.addLayout(self.f2k.player_layout)
 
         self.track_info = TrackInfo()
-        
 
         # Weights configuration
         weights_group = QGroupBox("Similarity Weights")
@@ -305,20 +295,24 @@ class MusicAnalyzer(QMainWindow):
         main_layout.addWidget(weights_group)
 
         # Connect signals
-        _ = self.select_dir_btn.clicked.connect(self.select_directory)
-        _ = self.load_analysis_btn.clicked.connect(self.load_analysis)
-        _ = self.save_analysis_btn.clicked.connect(self.save_analysis)
-        _ = self.start_analysis_btn.clicked.connect(self.start_analysis)
-        _ = self.stop_analysis_btn.clicked.connect(self.stop_analysis)
-        _ = self.tracks_list.currentItemChanged.connect(self.on_track_selected)
-        _ = self.track_filter.textChanged.connect(self.filter_tracks)
+        self.select_dir_btn.clicked.connect(self.select_directory)  # pyright: ignore[reportAny]
+        self.load_analysis_btn.clicked.connect(self.load_analysis)  # pyright: ignore[reportAny]
+        self.save_analysis_btn.clicked.connect(self.save_analysis)  # pyright: ignore[reportAny]
+        self.start_analysis_btn.clicked.connect(self.start_analysis)  # pyright: ignore[reportAny]
+        self.stop_analysis_btn.clicked.connect(self.stop_analysis)  # pyright: ignore[reportAny]
+        self.tracks_list.currentItemChanged.connect(self.on_track_selected)  # pyright: ignore[reportAny]
+        self.track_filter.textChanged.connect(self.filter_tracks)  # pyright: ignore[reportAny]
 
     def calculate_genre_similarity(
         self, base_genres: dict[str, float], other_genres: dict[str, float]
     ) -> float:
         all_genres = set(base_genres.keys()) | set(other_genres.keys())
-        base_vector: NDArray[np.float32] = np.array([base_genres.get(genre, 0.0) for genre in all_genres])
-        other_vector: NDArray[np.float32] = np.array([other_genres.get(genre, 0.0) for genre in all_genres])
+        base_vector: NDArray[np.float32] = np.array(
+            [base_genres.get(genre, 0.0) for genre in all_genres]
+        )
+        other_vector: NDArray[np.float32] = np.array(
+            [other_genres.get(genre, 0.0) for genre in all_genres]
+        )
 
         base_norm = np.linalg.norm(base_vector)
         other_norm = np.linalg.norm(other_vector)
@@ -432,7 +426,7 @@ class MusicAnalyzer(QMainWindow):
         similarities.sort(key=lambda x: x[1], reverse=True)
         return similarities[:n]
 
-    @Slot() # pyright: ignore[reportAny]
+    @Slot()  # pyright: ignore[reportAny]
     def select_directory(self):
         dir_path = QFileDialog.getExistingDirectory(
             self,
@@ -443,47 +437,46 @@ class MusicAnalyzer(QMainWindow):
         if dir_path:
             self.music_dir = dir_path
 
-    @Slot() # pyright: ignore[reportAny]
+    @Slot()  # pyright: ignore[reportAny]
     def start_analysis(self):
         if not hasattr(self, "music_dir") or not self.music_dir:
             return
 
         self.worker = AnalysisWorker(self.music_dir)
-        _ = self.worker.progress.connect(self.update_progress)
-        _ = self.worker.track_analyzed.connect(self.on_track_analyzed)
-        _ = self.worker.finished.connect(self.on_analysis_finished)
+        self.worker.progress.connect(self.update_progress)
+        self.worker.track_analyzed.connect(self.on_track_analyzed)
+        self.worker.finished.connect(self.on_analysis_finished)
         self.worker.start()
 
         self.start_analysis_btn.setEnabled(False)
         self.stop_analysis_btn.setEnabled(True)
 
-    @Slot() # pyright: ignore[reportAny]
+    @Slot()  # pyright: ignore[reportAny]
     def stop_analysis(self):
         if self.worker:
             self.worker.analyzing = False
-            self.worker.wait() # pyright: ignore[reportUnusedCallResult]
+            self.worker.wait()  # pyright: ignore[reportUnusedCallResult]
             self.start_analysis_btn.setEnabled(True)
             self.stop_analysis_btn.setEnabled(False)
 
-    @Slot(float) # pyright: ignore[reportArgumentType, reportAny]
+    @Slot(float)  # pyright: ignore[reportArgumentType, reportAny]
     def update_progress(self, progress: float) -> None:
         self.progress_bar.setValue(int(progress * 100))
-        
-    @Slot(str, AudioFeatures) # pyright: ignore[reportArgumentType, reportAny]
+
+    @Slot(str, AudioFeatures)  # pyright: ignore[reportArgumentType, reportAny]
     def on_track_analyzed(self, path: str, features: AudioFeatures):
         artist_name: str
-        
+
         if isinstance(features.metadata["artist"], list):
-            if len(features.metadata['artist']) > 1:
-                artist_name = "-".join(features.metadata['artist'])
+            if len(features.metadata["artist"]) > 1:
+                artist_name = "-".join(features.metadata["artist"])
             else:
                 artist_name = features.metadata["artist"][0]
-        elif isinstance(features.metadata['title'], str):
-            artist_name = features.metadata['title']
+        elif isinstance(features.metadata["title"], str):
+            artist_name = features.metadata["title"]
         else:
             artist_name = "Unknown"
-        
-            
+
         song_title: str
         if isinstance(features.metadata["title"], list):
             if len(features.metadata["title"]) > 1:
@@ -494,19 +487,21 @@ class MusicAnalyzer(QMainWindow):
             song_title = features.metadata["title"]
         else:
             song_title = "Unknown"
-        
+
         label = f"{artist_name} - {song_title}"
         self.tracks_list.addItem(label)
         self.tracks_features[label] = features
-    
-    @Slot() # pyright: ignore[reportAny]
+
+    @Slot()  # pyright: ignore[reportAny]
     def on_analysis_finished(self):
         self.start_analysis_btn.setEnabled(True)
         self.stop_analysis_btn.setEnabled(False)
         self.progress_bar.setValue(100)
 
-    @Slot() # pyright: ignore[reportAny]
-    def on_track_selected(self, current: QListWidgetItem | None = None, _: QListWidgetItem | None = None): # current / previous selected item on the list
+    @Slot()  # pyright: ignore[reportAny]
+    def on_track_selected(
+        self, current: QListWidgetItem | None = None, _: QListWidgetItem | None = None
+    ):  # current / previous selected item on the list
         if not current:
             return
 
@@ -523,10 +518,12 @@ class MusicAnalyzer(QMainWindow):
         if selected_path:
             features = self.tracks_features[selected_path]
             similar_tracks = self.get_similar_tracks(selected_path)
-            html_content = TrackDisplayTemplate().update_display(features, similar_tracks, selected_path)
+            html_content = TrackDisplayTemplate().update_display(
+                features, similar_tracks, selected_path
+            )
             self.track_info.setHtml(html_content)
 
-    @Slot() # pyright: ignore[reportAny]
+    @Slot()  # pyright: ignore[reportAny]
     def save_analysis(self):
         filename, _ = QFileDialog.getSaveFileName(
             self, "Save Analysis", "", "JSON Files (*.json)"
@@ -541,7 +538,7 @@ class MusicAnalyzer(QMainWindow):
             with open(filename, "w") as f:
                 json.dump(serialized_features, f, indent=2)
 
-    @Slot() # pyright: ignore[reportAny]
+    @Slot()  # pyright: ignore[reportAny]
     def load_analysis(self):
         filename, _ = QFileDialog.getOpenFileName(
             self, "Load Analysis", "", "JSON Files (*.json)"
@@ -559,7 +556,7 @@ class MusicAnalyzer(QMainWindow):
                 [Path(p).name for p in self.tracks_features.keys()]
             )
 
-    @Slot() # pyright: ignore[reportAny]
+    @Slot()  # pyright: ignore[reportAny]
     def filter_tracks(self):
         filter_text = self.track_filter.toPlainText().lower()
         for i in range(self.tracks_list.count()):
@@ -568,100 +565,8 @@ class MusicAnalyzer(QMainWindow):
 
     def apply_styles(self):
         # https://lospec.com/palette-list/1-bit-chill
-        style = """
-        QMainWindow, QWidget {
-            background-color: #110c22;
-            color: #c3dce5;
-            font-family: "Courier New", monospace;
-        }
-        QPushButton {
-            background-color: #110c22;
-            border: 1px solid #c3dce5;
-            padding: 4px 8px;
-            color: #c3dce5;
-            min-height: 20px;
-        }
-        QPushButton:hover {
-            background-color: #c3dce5;
-            color: #110c22;
-        }
-        QProgressBar {
-            border: 1px solid #c3dce5;
-            text-align: center;
-            color: #c3dce5;
-            max-height: 10px;
-        }
-        QProgressBar::chunk {
-            background-color: #c3dce5;
-        }
-        QListWidget {
-            background-color: #110c22;
-            border: 1px solid #c3dce5;
-            font-size: 11px;
-        }
-        QListWidget::item {
-            padding: 2px;
-        }
-        QListWidget::item:selected {
-            background-color: #c3dce5;
-            color: #110c22;
-        }
-        QTextEdit {
-            background-color: #110c22;
-            border: 1px solid #c3dce5;
-            padding: 4px;
-            font-size: 11px;
-        }
-        QTabWidget::pane {
-            border: 1px solid #c3dce5;
-            background-color: #110c22;
-        }
-        QTabBar::tab {
-            background-color: #110c22;
-            border: 1px solid #c3dce5;
-            border-bottom: none;
-            padding: 4px 8px;
-            margin-right: -1px;
-        }
-        QTabBar::tab:selected {
-            background-color: #c3dce5;
-            color: #110c22;
-        }
-        QGroupBox {
-            border: 1px solid #c3dce5;
-            margin-top: 4px;
-            padding-top: 8px;
-            font-size: 11px;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            left: 8px;
-            padding: 0 2px;
-        }
-        QSlider::groove:horizontal {
-            border: 1px solid #c3dce5;
-            height: 4px;
-            background: #110c22;
-        }
-        QSlider::handle:horizontal {
-            background: #c3dce5;
-            border: 1px solid #c3dce5;
-            width: 8px;
-            margin: -4px 0;
-        }
-        QScrollBar {
-            background-color: #110c22;
-            width: 10px;
-        }
-        QScrollBar::handle {
-            background-color: #c3dce5;
-            min-height: 20px;
-        }
-        QScrollBar::add-line, QScrollBar::sub-line {
-            background: none;
-        }
-        """
-        self.setStyleSheet(style)
+        with open("./style.qss") as f:
+            self.setStyleSheet(f.read())
 
         # Update layout spacing
         for layout in self.findChildren(QBoxLayout):
@@ -670,10 +575,10 @@ class MusicAnalyzer(QMainWindow):
 
 
 if __name__ == "__main__":
-    setenv = load_dotenv() 
+    setenv = load_dotenv()
     if setenv is False:
         raise Exception("environment variables must be set")
     app = QApplication(sys.argv)
-    window = MusicAnalyzer()
+    window = MusicAnalyzer(app)
     window.show()
     sys.exit(app.exec())

@@ -4,3 +4,4 @@ venv
 private
 .DS_Store
 .idea
+.env

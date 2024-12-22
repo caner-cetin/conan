@@ -1,13 +1,9 @@
 import hashlib
 import json
 import sys
-from dataclasses import (
-    asdict,
-    dataclass,
-)
 from datetime import datetime
 from pathlib import Path
-from typing import Any,  final
+from typing import final
 from typing_extensions import override
 
 import essentia.standard as es
@@ -32,46 +28,19 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSlider,
-    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QBoxLayout,
     QWidget,
 )
 
+from constants import AudioFeatures
 from models import Classifier
 from tinytag import TinyTag
+from dotenv import load_dotenv
+from player import Foobar2K, TrackInfo
+from templates import TrackDisplayTemplate
 
-@dataclass
-class AudioFeatures:
-    """Enhanced structured container for audio features"""
-
-    bpm: float
-    rhythm_strength: float
-    rhythm_regularity: float
-    danceability: list[float]
-    energy: float
-    mood_sad: list[float]
-    mood_relaxed: list[float]
-    mood_aggressive: list[float]
-    mirex: list[float]
-    genre_probabilities: list[float]
-    genre_labels: list[str]
-    mfcc_mean: list[float]
-    mfcc_var: list[float]
-    onset_rate: list[float]
-    pitch: float
-    loudness: float
-    last_modified: str
-    file_hash: str
-    metadata: dict[str, str | float | list[str]]
-
-    def to_dict(self) -> dict[str, float | str | list[float]]:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AudioFeatures":
-        return cls(**data)
 
 
 @final
@@ -117,6 +86,12 @@ class AnalysisWorker(QThread):
             filename=str(audio_path),
         )
         audio: NDArray[np.float32] = self.loader()
+        self.loader.configure(
+            sampleRate=44100,
+            resampleQuality=4,
+            filename=str(audio_path)
+        )
+        audio44k: NDArray[np.float32] = self.loader()
         # short explanation: remove the DC component from the audio signal for removing the noise from the audio.
         # long explanation by claude:
         #
@@ -153,9 +128,6 @@ class AnalysisWorker(QThread):
 
         # Rhythm analysis
         # according to https://essentia.upf.edu/reference/std_RhythmExtractor2013.html
-        # > Note that the algorithm requires the sample rate of the input signal to be 44100 Hz in order to work correctly.
-        # but the algorithm itself works fine? of course, no pinpoint accuracy, but it works fine.
-        # if we set the sample rate anywhere above 16000 genre detection model is screwed (like it detects everything as ambient), so i will take the "fine".
         bpm, beats, beats_conf, _, beats_loudness = self.rhythm_extractor(audio)
         energy = np.mean(beats_loudness) / 100
         rhythm_strength = np.mean(beats_conf)
@@ -164,7 +136,10 @@ class AnalysisWorker(QThread):
         genre_labels, genre_probabilities = self.classifiers.genre(audio)
 
         _, mfcc_coeffs = self.mfcc(audio)
-        onset_rate, _ = self.onset_rate(audio)
+        # https://essentia.upf.edu/reference/streaming_OnsetRate.html
+        # Please note that due to a dependence on the Onsets algorithm, this algorithm is only valid for audio signals with a sampling rate of 44100Hz. 
+        # This algorithm throws an exception if the input signal is empty.
+        onset_rate, _ = self.onset_rate(audio44k)
         
         tag: TinyTag = TinyTag.get(audio_path) # pyright: ignore[reportUnknownMemberType]
         return AudioFeatures(
@@ -246,11 +221,12 @@ class MusicAnalyzer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.tracks_features: dict[str, AudioFeatures] = {}
+        self.f2k = Foobar2K(self)
         self.setup_ui()
         self.apply_styles()
 
     def setup_ui(self):
-        self.setWindowTitle("Music Analyzer")
+        self.setWindowTitle("Conan")
         self.setMinimumSize(1200, 800)
 
         # Create central widget and main layout
@@ -278,25 +254,29 @@ class MusicAnalyzer(QMainWindow):
         # Create main content area
         content_layout = QHBoxLayout()
 
-        # Left side - Track list
+        # Left side - Track list & Foobar2000
         track_list_container = QVBoxLayout()
         self.track_filter = QTextEdit()
         self.track_filter.setMaximumHeight(30)
         self.track_filter.setPlaceholderText("Filter tracks...")
         self.tracks_list = QListWidget()
+        self.player_layout = QVBoxLayout()
+        self.play_button = QPushButton()
+        self.play_button.clicked.connect(self.f2k.play)
+        self.player_layout.addWidget(self.play_button)
 
         track_list_container.addWidget(self.track_filter)
         track_list_container.addWidget(self.tracks_list)
+        track_list_container.addLayout(self.player_layout)
 
         # Right side - Features and similar tracks
-        self.tabs = QTabWidget()
         self.features_text = QTextEdit()
         self.similar_tracks_text = QTextEdit()
         self.features_text.setReadOnly(True)
         self.similar_tracks_text.setReadOnly(True)
 
-        self.tabs.addTab(self.features_text, "Features")
-        self.tabs.addTab(self.similar_tracks_text, "Similar Tracks")
+        self.track_info = TrackInfo()
+        
 
         # Weights configuration
         weights_group = QGroupBox("Similarity Weights")
@@ -311,15 +291,14 @@ class MusicAnalyzer(QMainWindow):
             "timbral": WeightSlider("Timbral"),
         }
 
-        for i, (name, slider) in enumerate(self.weight_sliders.items()):
+        for i, (_, slider) in enumerate(self.weight_sliders.items()):
             weights_layout.addWidget(slider, i // 2, i % 2)
 
         weights_group.setLayout(weights_layout)
 
         # Add everything to the main layout
         content_layout.addLayout(track_list_container, 1)
-        content_layout.addWidget(self.tabs, 2)
-
+        content_layout.addWidget(self.track_info, 2)
         main_layout.addLayout(toolbar)
         main_layout.addWidget(self.progress_bar)
         main_layout.addLayout(content_layout)
@@ -543,55 +522,9 @@ class MusicAnalyzer(QMainWindow):
 
         if selected_path:
             features = self.tracks_features[selected_path]
-
-            # Update features text
-            features_text = (
-                "====================\n"
-                "Basic Info\n"
-                "====================\n"
-                f"BPM: {features.bpm:.1f}\n"
-                f"Energy: {features.energy:.2f}\n"
-                "====================\n"
-                "Genre Probabilities\n"
-                "====================\n"
-            )
-
-            features_text += "\n".join(
-                f"{label}: {prob:.2f}"
-                for label, prob in zip(
-                    features.genre_labels, features.genre_probabilities
-                )
-            )
-
-            features_text += (
-                "\n====================\n"
-                "Mood Analysis\n"
-                "====================\n"
-                f"Sad: {features.mood_sad[0]:.2f}\n"
-                f"Relaxed: {features.mood_relaxed[0]:.2f}\n"
-                f"Aggressive: {features.mood_aggressive[0]:.2f}\n"
-                f"Danceable: {features.danceability[0]:.2f}\n"
-                "\nMIREX Mood Categories:\n"
-                f"Passionate/Rousing: {features.mirex[0]:.2f}\n"
-                f"Cheerful/Fun: {features.mirex[1]:.2f}\n"
-                f"Brooding/Poignant: {features.mirex[2]:.2f}\n"
-                f"Humorous/Witty: {features.mirex[3]:.2f}\n"
-                f"Aggressive/Intense: {features.mirex[4]:.2f}\n"
-                "====================\n"
-                "Rhythm\n"
-                "====================\n"
-                f"Strength: {features.rhythm_strength:.2f}\n"
-                f"Regularity: {features.rhythm_regularity:.2f}\n"
-            )
-
-            self.features_text.setText(features_text)
-
-            # Update similar tracks
             similar_tracks = self.get_similar_tracks(selected_path)
-            similar_text = "Similar Tracks:\n" + "\n".join(
-                f"{Path(path).name}: %{abs(sim):.3f}" for path, sim in similar_tracks
-            )
-            self.similar_tracks_text.setText(similar_text)
+            html_content = TrackDisplayTemplate().update_display(features, similar_tracks, selected_path)
+            self.track_info.setHtml(html_content)
 
     @Slot() # pyright: ignore[reportAny]
     def save_analysis(self):
@@ -737,6 +670,9 @@ class MusicAnalyzer(QMainWindow):
 
 
 if __name__ == "__main__":
+    setenv = load_dotenv() 
+    if setenv is False:
+        raise Exception("environment variables must be set")
     app = QApplication(sys.argv)
     window = MusicAnalyzer()
     window.show()

@@ -1,0 +1,371 @@
+<html>
+
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"
+    integrity="sha512-ZwR1/gSZM3ai6vCdI+LVF1zSq/5HznD3ZSTk7kajkaj4D292NLuduDCO1c/NT8Id+jE58KYLKT7hXnbtryGmMg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      color: #c3dce5;
+      margin: 0;
+      padding: 12px;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 12px;
+    }
+
+    .section {
+      background: rgba(195, 220, 229, 0.05);
+      border: 1px solid rgba(195, 220, 229, 0.2);
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(195, 220, 229, 0.2);
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: auto auto auto auto auto;
+      gap: 4px;
+      font-size: 12px;
+    }
+
+    .info-item {
+      display: flex;
+      align-items: center;
+      padding: 2px 0;
+    }
+
+    .label {
+      color: rgba(195, 220, 229, 0.7);
+      margin-right: 8px;
+    }
+
+    .value {
+      font-weight: bold;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 300px;
+      width: 100%;
+      margin: 5px 0;
+    }
+
+    .similar-track {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 8px;
+      margin-bottom: 4px;
+      background: rgba(195, 220, 229, 0.05);
+      border-radius: 2px;
+      font-size: 12px;
+    }
+
+    .similar-track:hover {
+      background: rgba(195, 220, 229, 0.1);
+    }
+
+    .similar-name {
+      margin-right: 8px;
+    }
+
+    .similar-score {
+      color: rgba(195, 220, 229, 0.7);
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 4px;
+    }
+
+    .audio-features-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .audio-features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 4px;
+    }
+
+    .feature-box {
+      background: rgba(195, 220, 229, 0.05);
+      border: 1px solid rgba(195, 220, 229, 0.2);
+      padding: 10px;
+      border-radius: 4px;
+    }
+
+    .feature-value {
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      margin: 5px 0;
+    }
+
+    .feature-label {
+      font-size: 11px;
+      color: rgba(195, 220, 229, 0.7);
+      text-align: center;
+      margin-top: 4px;
+      font-weight: bold;
+    }
+
+    .feature-unit {
+      font-size: 12px;
+      color: rgba(195, 220, 229, 0.5);
+    }
+
+    .feature-description {
+      font-size: 11px;
+      color: rgba(195, 220, 229, 0.6);
+      margin-top: 8px;
+      line-height: 1.4;
+      text-align: center;
+    }
+
+    .section-description {
+      font-size: 11px;
+      color: rgba(195, 220, 229, 0.6);
+      margin: 8px 0;
+      line-height: 1.4;
+    }
+
+    .main-info {
+      display: grid;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="main-info">
+      <div class="section">
+        <div class="section-title">$metadata_title</div>
+        <div class="info-grid">
+          $metadata
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Similar Tracks</div>
+        $similar_tracks
+      </div>
+
+      <div class="charts-grid">
+        <div class="section">
+          <div class="section-title">Genre Analysis</div>
+          <div class="chart-container">
+            <canvas id="genreChart"></canvas>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">MIREX Mood</div>
+          <div class="chart-container">
+            <canvas id="mirexChart"></canvas>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Mood Analysis</div>
+          <div class="chart-container">
+            <canvas id="moodChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="audio-features-container">
+        <div class="section">
+          <div class="section-title">Audio Features</div>
+          <div class="audio-features-grid">
+            <div class="feature-box">
+              <div class="feature-label">Estimated Pitch</div>
+              <div class="feature-value">
+                $pitch
+                <span class="feature-unit">Hz</span>
+              </div>
+              <div class="feature-description">
+                Average fundamental frequency of the track. Higher values indicate higher pitched sounds. Normal
+                range: 20Hz-4000Hz.
+              </div>
+            </div>
+
+            <div class="feature-box">
+              <div class="feature-label">MFCC Mean</div>
+              <div class="feature-value">
+                $mfcc_mean
+              </div>
+              <div class="feature-description">
+                Mel-frequency cepstral coefficients average. Represents the overall timbre and spectral shape of the
+                audio.
+              </div>
+            </div>
+
+            <div class="feature-box">
+              <div class="feature-label">MFCC Variance</div>
+              <div class="feature-value">
+                $mfcc_var
+              </div>
+              <div class="feature-description">
+                Variance in timbre over time. Higher values indicate more dynamic timbral changes throughout the
+                track.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Onset Rate Distribution</div>
+          <div class="section-description">
+            Shows the distribution of musical events (notes, percussive hits) over time. The rising curve indicates
+            increasing density of musical events, useful for analyzing rhythm patterns and intensity changes
+            throughout the track.
+          </div>
+          <div class="chart-container">
+            <canvas id="onsetChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        Chart.defaults.color = '#c3dce5';
+        Chart.defaults.borderColor = 'rgba(195, 220, 229, 0.1)';
+
+        new Chart(document.getElementById('mirexChart'), {
+          type: 'radar',
+          data: {
+            labels: ['Passionate', 'Cheerful', 'Brooding', 'Humorous', 'Aggressive'],
+            datasets: [{
+              label: 'MIREX Mood',
+              data: [$mirex_passionate, $mirex_cheerful, $mirex_brooding,
+                $mirex_humorous, $mirex_aggressive],
+              backgroundColor: 'rgba(195, 220, 229, 0.2)',
+              borderColor: 'rgba(195, 220, 229, 0.6)',
+              pointBackgroundColor: 'rgba(195, 220, 229, 0.8)',
+            }]
+          },
+          options: {
+            scales: {
+              r: {
+                beginAtZero: true,
+                max: 1,
+                ticks: { display: false }
+              }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+
+        new Chart(document.getElementById('moodChart'), {
+          type: 'polarArea',
+          data: {
+            labels: ['Sad', 'Relaxed', 'Aggressive', 'Danceable'],
+            datasets: [{
+              data: [$sad, $relaxed, $aggressive, $danceable],
+              backgroundColor: [
+                'rgba(54, 162, 235, 0.5)',
+                'rgba(75, 192, 192, 0.5)',
+                'rgba(255, 99, 132, 0.5)',
+                'rgba(153, 102, 255, 0.5)'
+              ],
+              borderColor: [
+                'rgba(54, 162, 235, 1)',
+                'rgba(75, 192, 192, 1)',
+                'rgba(255, 99, 132, 1)',
+                'rgba(153, 102, 255, 1)'
+              ]
+            }]
+          },
+          options: {
+            scales: {
+              r: {
+                display: false
+              }
+            },
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: { fontSize: 10 }
+              }
+            }
+          }
+        });
+
+        new Chart(document.getElementById('genreChart'), {
+          type: 'bar',
+          data: {
+            labels: $genre_labels,
+            datasets: [{
+              label: 'Probability',
+              data: $genre_probabilities,
+              backgroundColor: 'rgba(195, 220, 229, 0.5)',
+              borderColor: 'rgba(195, 220, 229, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            scales: {
+              x: {
+                display: false,
+                beginAtZero: true,
+                max: 1
+              }
+            },
+            plugins: {
+              legend: { display: false }
+            },
+            responsive: true,
+            maintainAspectRatio: false
+          }
+        });
+
+        new Chart(document.getElementById('onsetChart'), {
+          type: 'bar',
+          data: {
+            labels: Array.from({ length: $onset_rates.length }, (_, i) => i + 1),
+            datasets: [{
+              label: 'Onset Rate',
+              data: $onset_rates,
+              backgroundColor: 'rgba(153, 102, 255, 0.5)',
+              borderColor: 'rgba(153, 102, 255, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: { display: false }
+              },
+              x: {
+                grid: { display: false }
+              }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+
+      </script>
+</body>
+
+</html>

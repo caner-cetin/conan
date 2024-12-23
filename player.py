@@ -12,10 +12,18 @@ from PySide6.QtCore import QObject, QSize, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QMovie, QPainter, QPixmap, Qt
 from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QStyle, QVBoxLayout
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QStyle,
+    QTextEdit,
+    QVBoxLayout,
+)
 from urllib3.poolmanager import PoolManager
 
-from constants import BeefWeb
+from constants import ActiveTrack, BeefWeb
+from templates import TrackPlayerInfoTemplate
 
 
 @final
@@ -40,7 +48,9 @@ class Foobar2K(QObject):
     api_url: str | None
     __state: BeefWeb.PlayerState.State | None = None
     __state_changed = Signal(object)
-    __active_item_changed: Signal = Signal(bool)
+    __active_track_changed = Signal(bool)
+    __rerender_player_info = Signal(bool)
+    __active_track: ActiveTrack | None = None
     __poll_timer: QTimer | None = None
     player_layout: QHBoxLayout
 
@@ -61,8 +71,11 @@ class Foobar2K(QObject):
         self.__poll_timer.timeout.connect(self.__update_state)  # pyright: ignore[reportAny]
         self.__poll_timer.start(1000)
 
-        self.__active_item_changed.connect(self.__fetch_and_update_artwork)  # pyright: ignore[reportAny]
-        self.__active_item_changed.connect(self.__get_playlist_item_info)  # pyright: ignore[reportAny]
+        self.__active_track_changed.connect(self.__fetch_and_update_artwork)  # pyright: ignore[reportAny]
+        self.__active_track_changed.connect(self.__get_active_track_info)  # pyright: ignore[reportAny]
+        self.__rerender_player_info.connect(self.__render_player_info_html)  # pyright: ignore[reportAny]
+
+        self.__track_player_info_template = TrackPlayerInfoTemplate()
 
     def __setup_ui(self):
         self.cover_art: bytes | None = None
@@ -71,21 +84,18 @@ class Foobar2K(QObject):
         self.cover_art_container = QLabel()
         self.cover_art_container.setFixedSize(self.cover_art_scale)
         self.cover_art_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cover_art_container.setScaledContents(False)
 
         self.cover_art_placeholder = QMovie("./assets/no_cover_art.gif")
         self.cover_art_placeholder.setScaledSize(self.cover_art_scale)
 
-        self.track_info_layout = QVBoxLayout()
-        self.track_title = QLabel()
-        self.album_title = QLabel()
-        self.duration = QLabel()
-        self.track_info_layout.addWidget(self.track_title)
-        self.track_info_layout.addWidget(self.album_title)
-        self.track_info_layout.addWidget(self.duration)
+        self.track_player_info_container = QTextEdit()
+        self.track_player_info_container.setMaximumHeight(120)
+        self.track_player_info_container.setReadOnly(True)
 
         self.player_layout = QHBoxLayout()
         self.player_layout.addWidget(self.cover_art_container)
-        self.player_layout.addLayout(self.track_info_layout)
+        self.player_layout.addWidget(self.track_player_info_container)
 
         self.__show_placeholder()
 
@@ -136,9 +146,15 @@ class Foobar2K(QObject):
                     st.player.activeItem.index != old_st.player.activeItem.index
                 )
                 if playlist_id_changed or active_index_changed:
-                    self.__active_item_changed.emit(True)
+                    self.__active_track_changed.emit(True)
+                playback_state_changed = (
+                    st.player.playbackState != old_st.player.playbackState
+                )
+                if playback_state_changed:
+                    self.__rerender_player_info.emit(True)
+
             else:
-                self.__active_item_changed.emit(True)
+                self.__active_track_changed.emit(True)
         else:
             self.__state = None
 
@@ -162,6 +178,7 @@ class Foobar2K(QObject):
 
     def __show_placeholder(self):
         self.cover_art_placeholder.stop()
+        self.cover_art_placeholder.setScaledSize(self.cover_art_scale)
         self.cover_art_container.setMovie(self.cover_art_placeholder)
         self.cover_art_placeholder.start()
 
@@ -199,34 +216,68 @@ class Foobar2K(QObject):
             self.__show_placeholder()
 
     @Slot()  # pyright: ignore[reportAny]
-    def __get_playlist_item_info(self):
-        try:
-            if self.__state is not None:
-                columns = ["%artist%]", "%title%]", "%album%]", "%length%]"]
-                columns_param = quote(json.dumps(columns))
+    def __get_active_track_info(self):
+        if self.__state is None:
+            return
+        valid_playlist_id = (
+            self.__state.player.activeItem.playlistId != ""
+            and self.__state.player.activeItem.playlistId is not None
+        )
+        if valid_playlist_id:
+            # all available columns are listed under doc/titleformat_help.html
+            columns = [
+                "%artist%]",
+                "%title%]",
+                "%album%]",
+                "%length%]",
+                "%tracknumber%]",
+                "%totaltracks%]",
+            ]
+            columns_param = quote(json.dumps(columns))
 
-                success, data, response = self.__make_request(
-                    "GET",
-                    (
-                        f"{self.api_url}/playlists/"
-                        f"{self.__state.player.activeItem.playlistId}/items/"
-                        f"0:{self.__state.player.activeItem.index+1}?"
-                        f"columns={columns_param}"
-                    ),
+            success, data, response = self.__make_request(
+                "GET",
+                (
+                    f"{self.api_url}/playlists/"
+                    f"{self.__state.player.activeItem.playlistId}/items/"
+                    f"0:{self.__state.player.activeItem.index+1}?"
+                    f"columns={columns_param}"
+                ),
+            )
+            if not success:
+                logger.error(
+                    f"<< {response.url} {response.status} {response.data} {response.json()}"
                 )
-                if not success:
-                    logger.error(
-                        f"<< {response.url} {response.status} {response.data} {response.json()}"
-                    )
-                    return
+                return
 
-                if isinstance(data, dict):
-                    playlist = BeefWeb.PlaylistItems.Playlist(**data)
-                    cols = playlist.playlistItems.items[
-                        self.__state.player.activeItem.index
-                    ].columns
-                    self.track_title.setText(f"{cols[0]} - {cols[1]}")
-                    self.album_title.setText(cols[2])
-                    self.duration.setText(cols[3])
-        except Exception as e:
-            print(f"Error querying current playing track: {e}")
+            if isinstance(data, dict):
+                playlist = BeefWeb.PlaylistItems.Playlist(**data)
+                cols = playlist.playlistItems.items[
+                    self.__state.player.activeItem.index
+                ].columns
+                for i, col in enumerate(cols):
+                    cols[i] = col.strip().replace('"', "", -1)
+                self.__active_track = ActiveTrack(
+                    artist=cols[0],
+                    title=cols[1],
+                    album=cols[2],
+                    length=cols[3],
+                    track_number=int(cols[4]),
+                    total_tracks=int(cols[5]) if cols[5] != "?" else 0,
+                )
+                self.__rerender_player_info.emit(True)
+
+    @Slot()  # pyright: ignore[reportAny]
+    def __render_player_info_html(self):
+        if self.__active_track is not None and self.__state is not None:
+            t = self.__track_player_info_template.update_display(
+                title=f"{self.__active_track.artist} - {self.__active_track.title}",
+                playback_status=self.__state.player.playbackState,
+            )
+            self.track_player_info_container.setHtml(t)
+        else:
+            t = self.__track_player_info_template.update_display(
+                title="zzz...",
+                playback_status="stopped",
+            )
+            self.track_player_info_container.setHtml(t)

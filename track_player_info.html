@@ -1,0 +1,43 @@
+<html>
+
+<head>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      color: #c3dce5;
+      margin: 0;
+      padding: 12px;
+    }
+
+    .playback-status {
+      display: flex;
+      align-content: center;
+    }
+
+    .playback-stopped {
+      color: #f22c2c;
+      font-size: large;
+    }
+
+    .playback-paused {
+      color: #f0305d;
+      font-size: large;
+    }
+
+    .playback-playing {
+      color: aqua;
+      font-size: large
+    }
+  </style>
+</head>
+
+<body>
+  <div class="playback-status">
+    $playback_status
+  </div>
+  <h3>
+    $title
+  </h3>
+</body>
+
+</html>

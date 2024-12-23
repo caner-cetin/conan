@@ -375,19 +375,35 @@ class MusicAnalyzer(QMainWindow):
 
             timbral_dist = w_timbral * np.mean(
                 [
-                    np.mean(np.abs(base_features.mfcc_mean - other_features.mfcc_mean)),
-                    np.mean(np.abs(base_features.mfcc_var - other_features.mfcc_var)),
+                    np.mean(
+                        np.abs(
+                            np.subtract(
+                                base_features.mfcc_mean, other_features.mfcc_mean
+                            )
+                        )
+                    ),
+                    np.mean(
+                        np.abs(
+                            np.subtract(base_features.mfcc_var, other_features.mfcc_var)
+                        )
+                    ),
                 ]
             )
 
             energy_dist = w_energy * abs(base_features.energy - other_features.energy)
 
             mirex_dist = np.mean(
-                [abs(a - b) for a, b in zip(base_features.mirex, other_features.mirex)]
+                [
+                    np.abs(a - b)
+                    for a, b in zip(base_features.mirex, other_features.mirex)
+                ]
             )
 
             tonal_dist = w_tonal * np.mean(
-                [abs(base_features.pitch - other_features.pitch), mirex_dist]
+                [
+                    np.abs(base_features.pitch - other_features.pitch),
+                    mirex_dist,
+                ]
             )
 
             mood_dist = w_mood * np.mean(

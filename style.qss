@@ -56,9 +56,6 @@
      background-color: #c3dce5;
      color: #110c22;
 }
- QLayout {
-     border: 1px solid #c3dce5;
-}
  QGroupBox {
      border: 1px solid #c3dce5;
      margin-top: 4px;

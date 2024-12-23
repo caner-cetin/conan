@@ -1,4 +1,6 @@
 {
   "reportUninitializedInstanceVariable": "none",
-  "reportUnusedCallResult": "none"
+  "reportUnusedCallResult": "none",
+  "reportAny": "none",
+  "reportUnusedParameter": "none"
 }

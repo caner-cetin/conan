@@ -27,7 +27,7 @@ class TensorflowPredict2D:
         input: str = "model/Placeholder",
         output: str = "model/Sigmoid",
     ) -> None: ...
-    def __call__(self, features: NDArray[np.float32]) -> NDArray[np.float32]: ...
+    def __call__(self, features: NDArray[np.float32]) -> NDArray[np.float32]: ... # this is a 2D array.
 
 class TensorflowPredictEffnetDiscogs:
     def __init__(

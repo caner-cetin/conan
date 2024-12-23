@@ -1,12 +1,14 @@
 import json
 import os
-import urllib.parse
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, final
 from urllib.parse import quote
 
+from gevent import monkey
+
+monkey.patch_all()
+import gevent
 import urllib3
-from essentia import standard
+from gevent.pool import Pool
 from loguru import logger
 from PySide6.QtCore import QObject, QSize, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QMovie, QPainter, QPixmap, Qt
@@ -16,9 +18,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QStyle,
     QTextEdit,
-    QVBoxLayout,
 )
 from urllib3.poolmanager import PoolManager
 
@@ -63,19 +63,20 @@ class Foobar2K(QObject):
         self.__http = PoolManager(
             maxsize=4, retries=urllib3.Retry(3, backoff_factor=0.1)
         )
-        self.__thread_pool = ThreadPoolExecutor(max_workers=2)
-
         self.__setup_ui()
 
         self.__poll_timer = QTimer(self)
-        self.__poll_timer.timeout.connect(self.__update_state)  # pyright: ignore[reportAny]
+        self.__poll_timer.timeout.connect(self.__spawn_update_state)
         self.__poll_timer.start(1000)
 
-        self.__active_track_changed.connect(self.__fetch_and_update_artwork)  # pyright: ignore[reportAny]
-        self.__active_track_changed.connect(self.__get_active_track_info)  # pyright: ignore[reportAny]
-        self.__rerender_player_info.connect(self.__render_player_info_html)  # pyright: ignore[reportAny]
+        self.__active_track_changed.connect(self.__spawn_fetch_and_update_artwork)
+        self.__active_track_changed.connect(self.__spawn_get_active_track_info)
+        self.__rerender_player_info.connect(self.__render_player_info_html)
+
+        self.__thread_pool = Pool(10)
 
         self.__track_player_info_template = TrackPlayerInfoTemplate()
+        self.__render_player_info_html()
 
     def __setup_ui(self):
         self.cover_art: bytes | None = None
@@ -99,7 +100,7 @@ class Foobar2K(QObject):
 
         self.__show_placeholder()
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def cleanup(self):
         """Cleanup method to be called before application exit"""
         if hasattr(self, "__poll_timer"):
@@ -119,7 +120,7 @@ class Foobar2K(QObject):
             return True, json.loads(response.data.decode("utf-8")), response
         return True, response.data, response
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def play(self):
         try:
             success, _, _ = self.__make_request("POST", f"{self.api_url}/player/play")
@@ -128,13 +129,12 @@ class Foobar2K(QObject):
         except Exception as e:
             print(f"Error in play command: {e}")
 
-    @Slot()  # pyright: ignore[reportAny]
     def __update_state(self):
         success, data, _ = self.__make_request("GET", f"{self.api_url}/player")
         if not success or not data:
             return
         if isinstance(data, dict):
-            st = BeefWeb.PlayerState.State(**data)  # pyright: ignore[reportAny]
+            st = BeefWeb.PlayerState.State(**data)
             old_st = self.__state
             self.__state = st
             if old_st is not None:
@@ -158,7 +158,10 @@ class Foobar2K(QObject):
         else:
             self.__state = None
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
+    def __spawn_update_state(self):
+        self.__thread_pool.spawn(self.__update_state)
+
     def __fetch_and_update_artwork(self) -> None:
         if self.__state is None:
             return
@@ -175,6 +178,10 @@ class Foobar2K(QObject):
             QTimer.singleShot(0, self.__update_artwork)
         else:
             QTimer.singleShot(0, self.__show_placeholder)
+
+    @Slot()
+    def __spawn_fetch_and_update_artwork(self):
+        self.__thread_pool.spawn(self.__fetch_and_update_artwork)
 
     def __show_placeholder(self):
         self.cover_art_placeholder.stop()
@@ -215,7 +222,6 @@ class Foobar2K(QObject):
             print(f"Error updating artwork: {e}")
             self.__show_placeholder()
 
-    @Slot()  # pyright: ignore[reportAny]
     def __get_active_track_info(self):
         if self.__state is None:
             return
@@ -267,7 +273,11 @@ class Foobar2K(QObject):
                 )
                 self.__rerender_player_info.emit(True)
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
+    def __spawn_get_active_track_info(self):
+        self.__thread_pool.spawn(self.__get_active_track_info)
+
+    @Slot()
     def __render_player_info_html(self):
         if self.__active_track is not None and self.__state is not None:
             t = self.__track_player_info_template.update_display(

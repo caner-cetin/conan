@@ -10,13 +10,11 @@ import numpy as np
 from dotenv import load_dotenv
 from numpy.typing import NDArray
 from PySide6.QtCore import (
-    QSize,
     Qt,
     QThread,
     Signal,
     Slot,
 )
-from PySide6.QtGui import QMovie, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QBoxLayout,
@@ -127,8 +125,7 @@ class AnalysisWorker(QThread):
 
         # Rhythm analysis
         # according to https://essentia.upf.edu/reference/std_RhythmExtractor2013.html
-        bpm, beats, beats_conf, _, beats_loudness = self.rhythm_extractor(audio)
-        energy = np.mean(beats_loudness) / 100
+        bpm, beats, beats_conf, _, _ = self.rhythm_extractor(audio)
         rhythm_strength = np.mean(beats_conf)
 
         pitch, _ = self.pitch_extractor(audio)
@@ -146,7 +143,6 @@ class AnalysisWorker(QThread):
             rhythm_strength=float(rhythm_strength),
             rhythm_regularity=float(np.std(np.diff(beats))),
             danceability=self.classifiers.danceability(audio),
-            energy=float(energy),
             mood_sad=self.classifiers.sad(audio),
             mood_relaxed=self.classifiers.relaxed(audio),
             mood_aggressive=self.classifiers.aggressive(audio),
@@ -159,13 +155,13 @@ class AnalysisWorker(QThread):
             loudness=self.loudness(audio),
             pitch=np.mean(pitch).item(),
             mirex=self.classifiers.mirex(audio),
-            #   def tolist(self) -> Any: ...
-            #   i have no mouth and i must scream
-            #   these are all 1D float arrays
-            mfcc_mean=np.mean(mfcc_coeffs, axis=0).tolist(),  # pyright: ignore[reportAny]
-            mfcc_var=np.var(mfcc_coeffs, axis=0).tolist(),  # pyright: ignore[reportAny]
-            onset_rate=onset_rate.tolist(),  # pyright: ignore[reportAny],
+            mfcc_mean=np.mean(mfcc_coeffs, axis=0).tolist(),
+            mfcc_var=np.var(mfcc_coeffs, axis=0).tolist(),
+            onset_rate=onset_rate.tolist(),
             metadata=tag.as_dict(),
+            instrumental=self.classifiers.instrumental_or_vocal(audio),
+            engagement=self.classifiers.engaging(audio),
+            vocal_gender=self.classifiers.vocal_gender(audio),
         )
 
     @override
@@ -275,7 +271,7 @@ class MusicAnalyzer(QMainWindow):
         self.weight_sliders = {
             "rhythm": WeightSlider("Rhythm"),
             "tonal": WeightSlider("Tonal"),
-            "energy": WeightSlider("Energy"),
+            "instrumental": WeightSlider("Instrumental"),
             "mood": WeightSlider("Mood"),
             "genre": WeightSlider("Genre"),
             "timbral": WeightSlider("Timbral"),
@@ -295,13 +291,13 @@ class MusicAnalyzer(QMainWindow):
         main_layout.addWidget(weights_group)
 
         # Connect signals
-        self.select_dir_btn.clicked.connect(self.select_directory)  # pyright: ignore[reportAny]
-        self.load_analysis_btn.clicked.connect(self.load_analysis)  # pyright: ignore[reportAny]
-        self.save_analysis_btn.clicked.connect(self.save_analysis)  # pyright: ignore[reportAny]
-        self.start_analysis_btn.clicked.connect(self.start_analysis)  # pyright: ignore[reportAny]
-        self.stop_analysis_btn.clicked.connect(self.stop_analysis)  # pyright: ignore[reportAny]
-        self.tracks_list.currentItemChanged.connect(self.on_track_selected)  # pyright: ignore[reportAny]
-        self.track_filter.textChanged.connect(self.filter_tracks)  # pyright: ignore[reportAny]
+        self.select_dir_btn.clicked.connect(self.select_directory)
+        self.load_analysis_btn.clicked.connect(self.load_analysis)
+        self.save_analysis_btn.clicked.connect(self.save_analysis)
+        self.start_analysis_btn.clicked.connect(self.start_analysis)
+        self.stop_analysis_btn.clicked.connect(self.stop_analysis)
+        self.tracks_list.currentItemChanged.connect(self.on_track_selected)
+        self.track_filter.textChanged.connect(self.filter_tracks)
 
     def calculate_genre_similarity(
         self, base_genres: dict[str, float], other_genres: dict[str, float]
@@ -347,14 +343,36 @@ class MusicAnalyzer(QMainWindow):
         # Get weights from sliders
         w_rhythm = self.weight_sliders["rhythm"].value()
         w_tonal = self.weight_sliders["tonal"].value()
-        w_energy = self.weight_sliders["energy"].value()
+        w_instrumental = self.weight_sliders["instrumental"].value()
         w_mood = self.weight_sliders["mood"].value()
         w_genre = self.weight_sliders["genre"].value()
         w_timbral = self.weight_sliders["timbral"].value()
 
+        artist_seen: dict[str, int] = {}
+
         for other_path, other_features in self.tracks_features.items():
             if other_path == track_path:
                 continue
+
+            if isinstance(base_features.metadata["artist"], list) and isinstance(
+                other_features.metadata["artist"], list
+            ):
+                k = "".join(base_features.metadata["artist"])
+                seen = artist_seen.get(k, 0)
+                if seen >= 3:
+                    continue
+                if seen == 0:
+                    artist_seen[k] = 1
+                else:
+                    artist_seen[k] += 1
+                artist_bonus = (
+                    0.2
+                    if other_features.metadata["artist"][0]
+                    == base_features.metadata["artist"][0]
+                    else 0
+                )
+            else:
+                artist_bonus = 0
 
             genre_sim = self.calculate_genre_similarity(
                 dict(
@@ -368,8 +386,17 @@ class MusicAnalyzer(QMainWindow):
 
             rhythm_dist = w_rhythm * np.mean(
                 [
-                    abs(base_features.bpm - other_features.bpm) / 200,
-                    abs(base_features.rhythm_strength - other_features.rhythm_strength),
+                    np.abs(base_features.bpm - other_features.bpm) / 200,
+                    np.abs(
+                        base_features.rhythm_strength - other_features.rhythm_strength
+                    ),
+                    np.mean(
+                        np.abs(
+                            np.subtract(
+                                base_features.engagement, other_features.engagement
+                            )
+                        )
+                    ),
                 ]
             )
 
@@ -390,49 +417,61 @@ class MusicAnalyzer(QMainWindow):
                 ]
             )
 
-            energy_dist = w_energy * abs(base_features.energy - other_features.energy)
-
-            mirex_dist = np.mean(
-                [
-                    np.abs(a - b)
-                    for a, b in zip(base_features.mirex, other_features.mirex)
-                ]
+            instrumental_dist = w_instrumental * np.mean(
+                np.abs(
+                    np.subtract(base_features.instrumental, other_features.instrumental)
+                )
             )
 
             tonal_dist = w_tonal * np.mean(
                 [
                     np.abs(base_features.pitch - other_features.pitch),
-                    mirex_dist,
+                    np.mean(
+                        np.abs(np.subtract(base_features.mirex, other_features.mirex))
+                    ),
+                    np.mean(
+                        np.abs(
+                            np.subtract(
+                                base_features.vocal_gender, other_features.vocal_gender
+                            )
+                        )
+                    ),
                 ]
             )
 
             mood_dist = w_mood * np.mean(
                 [
-                    abs(base_features.mood_sad[0] - other_features.mood_sad[0]),
-                    abs(base_features.mood_relaxed[0] - other_features.mood_relaxed[0]),
-                    abs(
-                        base_features.mood_aggressive[0]
-                        - other_features.mood_aggressive[0]
+                    np.abs(
+                        np.subtract(base_features.mood_sad, other_features.mood_sad)
                     ),
-                    abs(base_features.danceability[0] - other_features.danceability[0]),
+                    np.abs(
+                        np.subtract(
+                            base_features.mood_relaxed,
+                            other_features.mood_relaxed,
+                        )
+                    ),
+                    np.abs(
+                        np.subtract(
+                            base_features.mood_aggressive,
+                            other_features.mood_aggressive,
+                        )
+                    ),
+                    np.abs(
+                        np.subtract(
+                            base_features.danceability, other_features.danceability
+                        )
+                    ),
                 ]
-            )
-
-            # Artist familiarity bonus
-            artist_bonus = (
-                0.2
-                if other_features.last_modified == base_features.last_modified
-                else 0
             )
 
             total_distance = (
                 rhythm_dist
                 + tonal_dist
-                + energy_dist
+                + instrumental_dist
                 + mood_dist
                 + genre_dist
                 + timbral_dist
-            ) / (w_rhythm + w_tonal + w_energy + w_mood + w_genre + w_timbral)
+            ) / (w_rhythm + w_tonal + w_instrumental + w_mood + w_genre + w_timbral)
 
             total_distance = max(0, total_distance - artist_bonus)
             similarities.append(
@@ -442,7 +481,7 @@ class MusicAnalyzer(QMainWindow):
         similarities.sort(key=lambda x: x[1], reverse=True)
         return similarities[:n]
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def select_directory(self):
         dir_path = QFileDialog.getExistingDirectory(
             self,
@@ -453,7 +492,7 @@ class MusicAnalyzer(QMainWindow):
         if dir_path:
             self.music_dir = dir_path
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def start_analysis(self):
         if not hasattr(self, "music_dir") or not self.music_dir:
             return
@@ -467,19 +506,19 @@ class MusicAnalyzer(QMainWindow):
         self.start_analysis_btn.setEnabled(False)
         self.stop_analysis_btn.setEnabled(True)
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def stop_analysis(self):
         if self.worker:
             self.worker.analyzing = False
-            self.worker.wait()  # pyright: ignore[reportUnusedCallResult]
+            self.worker.wait()
             self.start_analysis_btn.setEnabled(True)
             self.stop_analysis_btn.setEnabled(False)
 
-    @Slot(float)  # pyright: ignore[reportArgumentType, reportAny]
+    @Slot(float)  # pyright: ignore[reportArgumentType]
     def update_progress(self, progress: float) -> None:
         self.progress_bar.setValue(int(progress * 100))
 
-    @Slot(str, AudioFeatures)  # pyright: ignore[reportArgumentType, reportAny]
+    @Slot(str, AudioFeatures)  # pyright: ignore[reportArgumentType]
     def on_track_analyzed(self, path: str, features: AudioFeatures):
         artist_name: str
 
@@ -508,16 +547,18 @@ class MusicAnalyzer(QMainWindow):
         self.tracks_list.addItem(label)
         self.tracks_features[label] = features
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def on_analysis_finished(self):
         self.start_analysis_btn.setEnabled(True)
         self.stop_analysis_btn.setEnabled(False)
         self.progress_bar.setValue(100)
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def on_track_selected(
-        self, current: QListWidgetItem | None = None, _: QListWidgetItem | None = None
-    ):  # current / previous selected item on the list
+        self,
+        current: QListWidgetItem | None = None,
+        previous: QListWidgetItem | None = None,
+    ):
         if not current:
             return
 
@@ -539,7 +580,7 @@ class MusicAnalyzer(QMainWindow):
             )
             self.track_info.setHtml(html_content)
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def save_analysis(self):
         filename, _ = QFileDialog.getSaveFileName(
             self, "Save Analysis", "", "JSON Files (*.json)"
@@ -554,7 +595,7 @@ class MusicAnalyzer(QMainWindow):
             with open(filename, "w") as f:
                 json.dump(serialized_features, f, indent=2)
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def load_analysis(self):
         filename, _ = QFileDialog.getOpenFileName(
             self, "Load Analysis", "", "JSON Files (*.json)"
@@ -572,7 +613,7 @@ class MusicAnalyzer(QMainWindow):
                 [Path(p).name for p in self.tracks_features.keys()]
             )
 
-    @Slot()  # pyright: ignore[reportAny]
+    @Slot()
     def filter_tracks(self):
         filter_text = self.track_filter.toPlainText().lower()
         for i in range(self.tracks_list.count()):

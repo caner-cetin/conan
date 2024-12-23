@@ -35,26 +35,20 @@ class TrackDisplayTemplate:
 
         # Prepare template variables
         template_vars = {
-            # Basic Information
             "bpm": f"{features.bpm:.1f}",
-            "energy": f"{features.energy:.2f}",
             "rhythm_strength": f"{features.rhythm_strength:.2f}",
             "rhythm_regularity": f"{features.rhythm_regularity:.2f}",
-            # MIREX Mood
             "mirex_passionate": features.mirex[0],
             "mirex_cheerful": features.mirex[1],
             "mirex_brooding": features.mirex[2],
             "mirex_humorous": features.mirex[3],
             "mirex_aggressive": features.mirex[4],
-            # Mood Analysis
             "sad": features.mood_sad[0],
             "relaxed": features.mood_relaxed[0],
             "aggressive": features.mood_aggressive[0],
             "danceable": features.danceability[0],
-            # Genre Analysis
             "genre_labels": genre_labels,
             "genre_probabilities": genre_probabilities,
-            # Similar Tracks
             "similar_tracks": self.__format_similar_tracks(similar_tracks),
             "metadata": self.__format_metadata(features.metadata),
             "metadata_title": label,
@@ -62,6 +56,9 @@ class TrackDisplayTemplate:
             "mfcc_mean": f"{features.mfcc_mean:.2f}",
             "mfcc_var": f"{features.mfcc_var:.2f}",
             "onset_rates": features.onset_rate,
+            "instrumental": features.instrumental,
+            "vocal_gender": features.vocal_gender,
+            "engagement": features.engagement,
         }
 
         return self.template.substitute(template_vars)

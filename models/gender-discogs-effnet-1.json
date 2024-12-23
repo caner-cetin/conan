@@ -1,27 +1,26 @@
 {
-    "name": "engagement_3c",
+    "name": "gender",
     "type": "multi-class classifier",
-    "link": "https://essentia.upf.edu/models/classification-heads/engagement/engagement_3c-discogs-effnet-1.pb",
-    "version": "1",
-    "description": "classification of music by 3 levels of engagement from discogs_effnet embeddings",
-    "author": "Xavier Lizarraga",
-    "email": "xavier.lizarraga@upf.edu",
-    "release_date": "2022-06-16",
+    "link": "https://essentia.upf.edu/models/classification-heads/gender/gender-discogs-effnet-1.pb",
+    "version": "2",
+    "description": "classification of vocal music by gender (male/female)",
+    "author": "Pablo Alonso",
+    "email": "pablo.alonso@upf.edu",
+    "release_date": "2022-08-25",
     "framework": "tensorflow",
-    "framework_version": "2.8.0",
+    "framework_version": "2.4.0",
     "classes": [
-        "not engaging",
-        "moderately engaging",
-        "engaging"
+        "female",
+        "male"
     ],
     "model_types": [
         "frozen_model"
     ],
     "dataset": {
-        "name": "in-house dataset",
-        "size": 22211,
+        "name": "In-house MTG collection",
+        "size": "3311 full tracks, 1508/1803 per class",
         "metrics": {
-            "test normalized accuracy": 0.65
+            "5-fold_cross_validation_normalized_accuracy": 85.6
         }
     },
     "schema": {
@@ -30,7 +29,7 @@
                 "name": "model/Placeholder",
                 "type": "float",
                 "shape": [
-                    1280
+                    1200
                 ]
             }
         ],
@@ -39,10 +38,9 @@
                 "name": "model/Softmax",
                 "type": "float",
                 "shape": [
-                    3
+                    2
                 ],
                 "op": "Softmax",
-                "description": "output layer",
                 "output_purpose": "predictions"
             },
             {

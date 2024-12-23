@@ -11,7 +11,6 @@ class AudioFeatures:
     rhythm_strength: float
     rhythm_regularity: float
     danceability: list[float]
-    energy: float
     mood_sad: list[float]
     mood_relaxed: list[float]
     mood_aggressive: list[float]
@@ -21,6 +20,9 @@ class AudioFeatures:
     mfcc_mean: list[float]
     mfcc_var: list[float]
     onset_rate: list[float]
+    instrumental: list[float]
+    engagement: list[float]
+    vocal_gender: list[float]
     pitch: float
     loudness: float
     last_modified: str

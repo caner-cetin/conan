@@ -8,7 +8,7 @@ from gevent import monkey
 monkey.patch_all()
 import gevent
 import urllib3
-from gevent.pool import Pool
+from gevent.pool import Group
 from loguru import logger
 from PySide6.QtCore import QObject, QSize, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QMovie, QPainter, QPixmap, Qt
@@ -69,11 +69,15 @@ class Foobar2K(QObject):
         self.__poll_timer.timeout.connect(self.__spawn_update_state)
         self.__poll_timer.start(1000)
 
+        self.__greenlet_timer = QTimer(self)
+        self.__greenlet_timer.timeout.connect(self.__reschedule_greenlets)
+        self.__greenlet_timer.start()
+
         self.__active_track_changed.connect(self.__spawn_fetch_and_update_artwork)
         self.__active_track_changed.connect(self.__spawn_get_active_track_info)
         self.__rerender_player_info.connect(self.__render_player_info_html)
 
-        self.__thread_pool = Pool(10)
+        self.__thread_pool = Group()
 
         self.__track_player_info_template = TrackPlayerInfoTemplate()
         self.__render_player_info_html()
@@ -107,7 +111,7 @@ class Foobar2K(QObject):
             if self.__poll_timer is not None:
                 self.__poll_timer.stop()
         if hasattr(self, "__thread_pool"):
-            self.__thread_pool.shutdown(wait=True)
+            self.__thread_pool.kill()
 
     def __make_request(
         self, method: str, url: str
@@ -291,3 +295,31 @@ class Foobar2K(QObject):
                 playback_status="stopped",
             )
             self.track_player_info_container.setHtml(t)
+
+    @Slot()
+    def __reschedule_greenlets(self):
+        """
+        Without this function, greenlets wont work. Here is why:
+        
+        In gevent, greenlets are cooperatively scheduled, meaning they voluntarily yield control to other greenlets.
+        
+        gevent.sleep(0) is special - it doesn't actually sleep, but it does two critical things:
+
+        -   Forces the current greenlet to yield control back to the event loop
+        -   Allows the event loop to process any pending greenlets in the queue
+        
+        Without this periodic sleep(0), greenlets are getting spawned but never getting a chance to run because:
+        -   Qt's event loop runs on the main thread
+        -   Greenlets need explicit scheduling points to switch between them
+        -   The Qt timer is spawning greenlets, but nothing is telling gevent "now's a good time to run those greenlets"
+        
+        ```py
+        # Without gevent.sleep(0):
+        Timer tick -> Spawn greenlet -> Timer tick -> Spawn greenlet  # Greenlets never run!
+
+        # With gevent.sleep(0):
+        Timer tick -> Spawn greenlet -> sleep(0) -> Greenlet runs -> Timer tick -> ...
+        ```
+        So this function is essentially telling gevent "pause whatever you're doing and check if there are any other greenlets that need to run."
+        """
+        gevent.sleep(0)

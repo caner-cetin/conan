@@ -1,7 +1,6 @@
 __pycache__
 .vscode
 venv
-private
 .DS_Store
 .idea
 .env

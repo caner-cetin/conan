@@ -11,14 +11,19 @@ import urllib3
 from gevent.pool import Group
 from loguru import logger
 from PySide6.QtCore import QObject, QSize, QTimer, Signal, Slot
-from PySide6.QtGui import QColor, QMovie, QPainter, QPixmap, Qt
+from PySide6.QtGui import QColor, QIcon, QMovie, QPainter, QPixmap, Qt
 from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QHBoxLayout,
     QLabel,
+    QListView,
+    QListWidget,
     QMainWindow,
+    QPushButton,
     QTextEdit,
+    QVBoxLayout,
 )
 from urllib3.poolmanager import PoolManager
 
@@ -47,12 +52,11 @@ class TrackInfo(QWebEngineView):
 class Foobar2K(QObject):
     api_url: str | None
     __state: BeefWeb.PlayerState.State | None = None
-    __state_changed = Signal(object)
     __active_track_changed = Signal(bool)
-    __rerender_player_info = Signal(bool)
+    __playback_state_changed = Signal(bool)
     __active_track: ActiveTrack | None = None
-    __poll_timer: QTimer | None = None
-    player_layout: QHBoxLayout
+    __player_state_poll_timer: QTimer | None = None
+    player_layout: QVBoxLayout
 
     def __init__(self, parent: QMainWindow) -> None:
         self.api_url = os.getenv("API_URL")
@@ -65,9 +69,9 @@ class Foobar2K(QObject):
         )
         self.__setup_ui()
 
-        self.__poll_timer = QTimer(self)
-        self.__poll_timer.timeout.connect(self.__spawn_update_state)
-        self.__poll_timer.start(1000)
+        self.__player_state_poll_timer = QTimer(self)
+        self.__player_state_poll_timer.timeout.connect(self.__spawn_update_state)
+        self.__player_state_poll_timer.start(250)
 
         self.__greenlet_timer = QTimer(self)
         self.__greenlet_timer.timeout.connect(self.__reschedule_greenlets)
@@ -75,7 +79,8 @@ class Foobar2K(QObject):
 
         self.__active_track_changed.connect(self.__spawn_fetch_and_update_artwork)
         self.__active_track_changed.connect(self.__spawn_get_active_track_info)
-        self.__rerender_player_info.connect(self.__render_player_info_html)
+        self.__playback_state_changed.connect(self.__render_player_info_html)
+        self.__playback_state_changed.connect(self.__update_playback_controls)
 
         self.__thread_pool = Group()
 
@@ -86,21 +91,59 @@ class Foobar2K(QObject):
         self.cover_art: bytes | None = None
         self.cover_art_scale = QSize(120, 120)
 
+        self.player_info_layout_lhs = QVBoxLayout()
+
         self.cover_art_container = QLabel()
         self.cover_art_container.setFixedSize(self.cover_art_scale)
         self.cover_art_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cover_art_container.setScaledContents(False)
 
+        self.playback_controls_layout = QHBoxLayout()
+        self.playback_controls = QButtonGroup()
+        self.play_pause_button = QPushButton()
+        self.play_pause_button.clicked.connect(self.__spawn_play_or_pause)
+        self.stop_button = QPushButton()
+        self.stop_button.clicked.connect(self.__spawn_stop)
+
+        self.playback_control_icon_size = QSize(24, 24)
+        self.pause_icon = QIcon("./assets/icons/pause.svg")
+        self.play_icon = QIcon("./assets/icons/play.svg")
+        self.stop_icon = QIcon("./assets/icons/stop.svg")
+        self.play_pause_button.setIcon(self.pause_icon)
+        self.play_pause_button.setIconSize(self.playback_control_icon_size)
+        self.stop_button.setIcon(self.stop_icon)
+        self.stop_button.setIconSize(self.playback_control_icon_size)
+
+        self.playback_controls.addButton(self.play_pause_button)
+        self.playback_controls.addButton(self.stop_button)
+        self.playback_controls_layout.addWidget(self.play_pause_button)
+        self.playback_controls_layout.addWidget(self.stop_button)
+
+        self.player_info_layout_lhs.addWidget(self.cover_art_container)
+        self.player_info_layout_lhs.addLayout(self.playback_controls_layout)
+
         self.cover_art_placeholder = QMovie("./assets/no_cover_art.gif")
         self.cover_art_placeholder.setScaledSize(self.cover_art_scale)
 
+        self.player_info_layout_rhs = QVBoxLayout()
+
         self.track_player_info_container = QTextEdit()
-        self.track_player_info_container.setMaximumHeight(120)
+        self.track_player_info_container.setMaximumHeight(80)
         self.track_player_info_container.setReadOnly(True)
 
-        self.player_layout = QHBoxLayout()
-        self.player_layout.addWidget(self.cover_art_container)
-        self.player_layout.addWidget(self.track_player_info_container)
+        self.in_queue_list = QListWidget()
+        self.in_queue_list.setMaximumHeight(64)
+
+        self.player_info_layout_rhs.addWidget(self.track_player_info_container)
+        self.player_info_layout_rhs.addWidget(self.in_queue_list)
+
+        self.player_info_layout = QHBoxLayout()
+        self.player_info_layout.addLayout(self.player_info_layout_lhs)
+        self.player_info_layout.addLayout(self.player_info_layout_rhs)
+
+        self.player_layout = QVBoxLayout()
+        self.player_layout.addLayout(self.player_info_layout)
+        self.player_layout.addLayout(self.playback_controls_layout)
 
         self.__show_placeholder()
 
@@ -108,8 +151,8 @@ class Foobar2K(QObject):
     def cleanup(self):
         """Cleanup method to be called before application exit"""
         if hasattr(self, "__poll_timer"):
-            if self.__poll_timer is not None:
-                self.__poll_timer.stop()
+            if self.__player_state_poll_timer is not None:
+                self.__player_state_poll_timer.stop()
         if hasattr(self, "__thread_pool"):
             self.__thread_pool.kill()
 
@@ -124,14 +167,28 @@ class Foobar2K(QObject):
             return True, json.loads(response.data.decode("utf-8")), response
         return True, response.data, response
 
-    @Slot()
-    def play(self):
+    def __play_or_pause(self):
         try:
-            success, _, _ = self.__make_request("POST", f"{self.api_url}/player/play")
-            if not success:
-                print("Failed to send play command")
+            if self.__state:
+                ps = self.__state.player.playbackState
+                if ps == "paused" or ps == "stopped":
+                    self.__make_request("POST", f"{self.api_url}/player/play")
+                elif ps == "playing":
+                    self.__make_request("POST", f"{self.api_url}/player/stop")
         except Exception as e:
             print(f"Error in play command: {e}")
+
+    def __spawn_play_or_pause(self):
+        self.__thread_pool.spawn(self.__play_or_pause)
+
+    def __stop(self):
+        try:
+            self.__make_request("POST", f"{self.api_url}/player/stop")
+        except Exception as e:
+            print(f"Error in stop command: {e}")
+
+    def __spawn_stop(self):
+        self.__thread_pool.spawn(self.__stop)
 
     def __update_state(self):
         success, data, _ = self.__make_request("GET", f"{self.api_url}/player")
@@ -142,23 +199,20 @@ class Foobar2K(QObject):
             old_st = self.__state
             self.__state = st
             if old_st is not None:
-                playlist_id_changed = (
-                    st.player.activeItem.playlistId
-                    != old_st.player.activeItem.playlistId
+                self.__active_track_changed.emit(
+                    (
+                        st.player.activeItem.playlistId
+                        != old_st.player.activeItem.playlistId
+                    )
+                    or (st.player.activeItem.index != old_st.player.activeItem.index)
                 )
-                active_index_changed = (
-                    st.player.activeItem.index != old_st.player.activeItem.index
-                )
-                if playlist_id_changed or active_index_changed:
-                    self.__active_track_changed.emit(True)
-                playback_state_changed = (
+                self.__playback_state_changed.emit(
                     st.player.playbackState != old_st.player.playbackState
                 )
-                if playback_state_changed:
-                    self.__rerender_player_info.emit(True)
 
             else:
                 self.__active_track_changed.emit(True)
+                self.__playback_state_changed.emit(True)
         else:
             self.__state = None
 
@@ -275,7 +329,7 @@ class Foobar2K(QObject):
                     track_number=int(cols[4]),
                     total_tracks=int(cols[5]) if cols[5] != "?" else 0,
                 )
-                self.__rerender_player_info.emit(True)
+                self.__playback_state_changed.emit(True)
 
     @Slot()
     def __spawn_get_active_track_info(self):
@@ -283,36 +337,57 @@ class Foobar2K(QObject):
 
     @Slot()
     def __render_player_info_html(self):
-        if self.__active_track is not None and self.__state is not None:
-            t = self.__track_player_info_template.update_display(
-                title=f"{self.__active_track.artist} - {self.__active_track.title}",
-                playback_status=self.__state.player.playbackState,
+        self.track_player_info_container.setHtml(
+            self.__track_player_info_template.update_display(
+                track=self.__active_track
+                if self.__active_track is not None
+                else ActiveTrack(
+                    artist="me",
+                    title="zzz...",
+                    album="play something..",
+                    track_number=0,
+                    total_tracks=0,
+                    length="",
+                ),
+                playback_status=self.__state.player.playbackState
+                if self.__state is not None
+                else "stopped",
             )
-            self.track_player_info_container.setHtml(t)
-        else:
-            t = self.__track_player_info_template.update_display(
-                title="zzz...",
-                playback_status="stopped",
-            )
-            self.track_player_info_container.setHtml(t)
+        )
+
+    @Slot()
+    def __update_playback_controls(self):
+        if self.__state is None:
+            return
+        ps = self.__state.player.playbackState
+        if ps == "stopped":
+            self.stop_button.setDisabled(True)
+            self.play_pause_button.setDisabled(False)
+            self.play_pause_button.setIcon(self.play_icon)
+        if ps == "playing":
+            self.play_pause_button.setIcon(self.pause_icon)
+            self.stop_button.setDisabled(False)
+        if ps == "paused":
+            self.play_pause_button.setIcon(self.play_icon)
+            self.stop_button.setDisabled(False)
 
     @Slot()
     def __reschedule_greenlets(self):
         """
         Without this function, greenlets wont work. Here is why:
-        
+
         In gevent, greenlets are cooperatively scheduled, meaning they voluntarily yield control to other greenlets.
-        
+
         gevent.sleep(0) is special - it doesn't actually sleep, but it does two critical things:
 
         -   Forces the current greenlet to yield control back to the event loop
         -   Allows the event loop to process any pending greenlets in the queue
-        
+
         Without this periodic sleep(0), greenlets are getting spawned but never getting a chance to run because:
         -   Qt's event loop runs on the main thread
         -   Greenlets need explicit scheduling points to switch between them
         -   The Qt timer is spawning greenlets, but nothing is telling gevent "now's a good time to run those greenlets"
-        
+
         ```py
         # Without gevent.sleep(0):
         Timer tick -> Spawn greenlet -> Timer tick -> Spawn greenlet  # Greenlets never run!
@@ -321,5 +396,26 @@ class Foobar2K(QObject):
         Timer tick -> Spawn greenlet -> sleep(0) -> Greenlet runs -> Timer tick -> ...
         ```
         So this function is essentially telling gevent "pause whatever you're doing and check if there are any other greenlets that need to run."
+
+        Suggested way to use:
+        ```py
+        self.__poll_timer = QTimer(self)
+        # update the ui etc.
+        self.__poll_timer.timeout.connect(self.__spawn_update_state)
+        self.__poll_timer.start(1000)
+
+        self.__greenlet_timer = QTimer(self)
+        self.__greenlet_timer.timeout.connect(self.__reschedule_greenlets)
+        self.__greenlet_timer.start()
+        ```
+        Do not set the timer interval. From https://doc.qt.io/qt-6/qtimer.html#interval-prop:
+
+        > The default value for interval is 0. A QTimer with a timeout interval of 0 will time out as soon as all the events in the window system's event queue have been processed.
+
+        By force waking up the gevent for processing the greenlets in queue, we have instant response to the new work arriving, meaning there will be no artificial delays.
+
+        There is pool size check before calling gevent.sleep to prevent unnecessary rescheduling, and, even then, calling gevent.sleep does not have any significant performance hits, at all,
+        so there is no harm in running this function after event loop in main thread (QT) is done.
         """
-        gevent.sleep(0)
+        if len(self.__thread_pool.greenlets) > 0:
+            gevent.sleep(0)

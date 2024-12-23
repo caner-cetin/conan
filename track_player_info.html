@@ -3,41 +3,56 @@
 <head>
   <style>
     body {
-      font-family: 'Courier New', monospace;
+      font-family: 'Centaur', monospace;
       color: #c3dce5;
       margin: 0;
       padding: 12px;
     }
 
-    .playback-status {
+    .player {
       display: flex;
-      align-content: center;
+      align-content: right;
     }
 
     .playback-stopped {
       color: #f22c2c;
-      font-size: large;
+      font-size: medium;
+      font-weight: bold;
     }
 
     .playback-paused {
       color: #f0305d;
-      font-size: large;
+      font-size: medium;
+      font-weight: bold;
     }
 
     .playback-playing {
       color: aqua;
-      font-size: large
+      font-size: medium;
+      font-weight: bold;
+    }
+
+    .track-info {
+      display: grid;
+      grid-template-columns: 1fr;
+      font-size: large;
     }
   </style>
 </head>
 
 <body>
-  <div class="playback-status">
-    $playback_status
+  <div>
+    <span style="color: beige; font-weight: bold;">Foobar2000</span> - $playback_status
   </div>
-  <h3>
-    $title
-  </h3>
+  <div class="track-info">
+    <div>
+      $artist - $title
+
+    </div>
+    <div>
+      $album ($track_number / $total_tracks)
+    </div>
+  </div>
 </body>
 
 </html>

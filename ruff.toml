@@ -1,2 +1,4 @@
 [format]
 indent-style = "space"
+[lint]
+ignore = ["E402"]

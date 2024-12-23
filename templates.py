@@ -4,7 +4,7 @@ from typing import Literal, final
 
 import numpy as np
 
-from constants import AudioFeatures
+from constants import ActiveTrack, AudioFeatures
 
 
 @final
@@ -130,7 +130,9 @@ class TrackPlayerInfoTemplate:
             self.template = Template(file.read())
 
     def update_display(
-        self, title: str, playback_status: Literal["stopped", "playing", "paused"]
+        self,
+        track: ActiveTrack,
+        playback_status: Literal["stopped", "playing", "paused"],
     ) -> str:
         playback_status_html: str = ""
         match playback_status:
@@ -147,5 +149,12 @@ class TrackPlayerInfoTemplate:
                 <span class="playback-playing">Playing</span>
             """
         return self.template.substitute(
-            {"title": title, "playback_status": playback_status_html}
+            {
+                "title": track.title,
+                "playback_status": playback_status_html,
+                "artist": track.artist,
+                "album": track.album,
+                "track_number": track.track_number,
+                "total_tracks": track.total_tracks if track.total_tracks != 0 else "?",
+            }
         )

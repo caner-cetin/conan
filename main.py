@@ -191,7 +191,7 @@ class WeightSlider(QWidget):
         super().__init__(parent)
         layout = QHBoxLayout()
         self.label = QLabel(label)
-        self.slider = QSlider(Qt.Horizontal)
+        self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(0, 200)
         self.slider.setValue(100)
         self.value_label = QLabel("1.0")
@@ -224,7 +224,7 @@ class MusicAnalyzer(QMainWindow):
 
     def setup_ui(self):
         self.setWindowTitle("Conan")
-        self.setMinimumSize(1200, 800)
+        self.setMinimumSize(1600, 900)
 
         # Create central widget and main layout
         central_widget = QWidget()
@@ -252,15 +252,15 @@ class MusicAnalyzer(QMainWindow):
         content_layout = QHBoxLayout()
 
         # Left side - Track list & Foobar2000
-        track_list_container = QVBoxLayout()
+        self.track_list_container = QVBoxLayout()
         self.track_filter = QTextEdit()
         self.track_filter.setMaximumHeight(30)
         self.track_filter.setPlaceholderText("Filter tracks...")
         self.tracks_list = QListWidget()
 
-        track_list_container.addWidget(self.track_filter)
-        track_list_container.addWidget(self.tracks_list)
-        track_list_container.addLayout(self.f2k.player_layout)
+        self.track_list_container.addWidget(self.track_filter)
+        self.track_list_container.addWidget(self.tracks_list)
+        self.track_list_container.addLayout(self.f2k.player_layout)
 
         self.track_info = TrackInfo()
 
@@ -281,14 +281,14 @@ class MusicAnalyzer(QMainWindow):
             weights_layout.addWidget(slider, i // 2, i % 2)
 
         weights_group.setLayout(weights_layout)
+        self.track_list_container.addWidget(weights_group)
 
         # Add everything to the main layout
-        content_layout.addLayout(track_list_container, 1)
+        content_layout.addLayout(self.track_list_container, 1)
         content_layout.addWidget(self.track_info, 2)
         main_layout.addLayout(toolbar)
         main_layout.addWidget(self.progress_bar)
         main_layout.addLayout(content_layout)
-        main_layout.addWidget(weights_group)
 
         # Connect signals
         self.select_dir_btn.clicked.connect(self.select_directory)
@@ -487,7 +487,7 @@ class MusicAnalyzer(QMainWindow):
             self,
             "Select Music Directory",
             "",
-            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
+            QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontResolveSymlinks,
         )
         if dir_path:
             self.music_dir = dir_path
@@ -624,11 +624,6 @@ class MusicAnalyzer(QMainWindow):
         # https://lospec.com/palette-list/1-bit-chill
         with open("./style.qss") as f:
             self.setStyleSheet(f.read())
-
-        # Update layout spacing
-        for layout in self.findChildren(QBoxLayout):
-            layout.setSpacing(2)
-            layout.setContentsMargins(2, 2, 2, 2)
 
 
 if __name__ == "__main__":

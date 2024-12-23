@@ -1,56 +1,126 @@
+<!DOCTYPE html>
 <html>
 
 <head>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
   <style>
     body {
-      font-family: 'Centaur', monospace;
+      font-family: 'Centaur', Arial, sans-serif;
       color: #c3dce5;
       margin: 0;
-      padding: 12px;
+      padding: 4px;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
     }
 
-    .player {
-      display: flex;
-      align-content: right;
+    .app-name {
+      color: #c3dce5;
+      font-weight: bold;
     }
 
     .playback-stopped {
-      color: #f22c2c;
-      font-size: medium;
-      font-weight: bold;
+      color: #c3dce580;
     }
 
     .playback-paused {
-      color: #f0305d;
-      font-size: medium;
-      font-weight: bold;
+      color: #c3dce580;
     }
 
     .playback-playing {
-      color: aqua;
-      font-size: medium;
-      font-weight: bold;
+      color: #c3dce5;
     }
 
     .track-info {
-      display: grid;
-      grid-template-columns: 1fr;
-      font-size: large;
+      margin: 12px 0;
+      border-bottom: 1px solid #c3dce520;
+      padding-bottom: 12px;
+    }
+
+    .track-title {
+      font-size: 1.1em;
+      margin-bottom: 4px;
+    }
+
+    .track-details {
+      font-size: 0.9em;
+      color: #c3dce580;
+    }
+
+    .queue-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #c3dce520;
+    }
+
+    .queue-item:last-child {
+      border-bottom: none;
+    }
+
+    .queue-info {
+      flex-grow: 1;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .control-button {
+      background: #1a1640;
+      border: 1px solid #c3dce540;
+      border-radius: 4px;
+      color: #c3dce5;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .control-button:hover {
+      background: #221d4d;
+      border-color: #c3dce5;
+    }
+
+    .control-button:active {
+      background: #2a2455;
     }
   </style>
+  <meta name="htmx-config" content='{"withCredentials":"false"}'>
+
 </head>
 
 <body>
-  <div>
-    <span style="color: beige; font-weight: bold;">Foobar2000</span> - $playback_status
-  </div>
-  <div class="track-info">
-    <div>
-      $artist - $title
+  <div hx-ext="sse" sse-connect="http://127.0.0.1:31311/sse">
+    <div class="player-container">
+      <div class="header">
+        <span class="app-name">Foobar2000</span>
+        <div sse-swap="PlaybackState"></div>
+      </div>
 
-    </div>
-    <div>
-      $album ($track_number / $total_tracks)
+      <div class="track-info">
+        <div sse-swap="Title"></div>
+        <div sse-swap="Album"></div>
+      </div>
+
+      <div class="queue">
+        <div class="queue-item">
+          <div class="queue-info">
+            <span>Artist - Title</span>
+          </div>
+          <div class="button-group">
+            <button class="control-button play" onclick="handlePlay()">Play</button>
+            <button class="control-button skip" onclick="handleSkip()">Skip</button>
+            <button class="control-button remove" onclick="handleRemove()">Remove</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </body>

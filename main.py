@@ -1,6 +1,7 @@
 import hashlib
 import json
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import final
@@ -17,7 +18,6 @@ from PySide6.QtCore import (
 )
 from PySide6.QtWidgets import (
     QApplication,
-    QBoxLayout,
     QFileDialog,
     QGridLayout,
     QGroupBox,
@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 from tinytag import TinyTag
 from typing_extensions import override
 
+from backend import run_server
 from constants import AudioFeatures
 from models import Classifier
 from player import Foobar2K, TrackInfo
@@ -632,5 +633,7 @@ if __name__ == "__main__":
         raise Exception("environment variables must be set")
     app = QApplication(sys.argv)
     window = MusicAnalyzer(app)
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
     window.show()
     sys.exit(app.exec())

@@ -2,5 +2,7 @@
   "reportUninitializedInstanceVariable": "none",
   "reportUnusedCallResult": "none",
   "reportAny": "none",
-  "reportUnusedParameter": "none"
+  "reportUnusedParameter": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownVariableType": "none"
 }

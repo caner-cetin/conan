@@ -125,36 +125,8 @@ class TrackDisplayTemplate:
 
 @final
 class TrackPlayerInfoTemplate:
+    template: str
+
     def __init__(self) -> None:
         with open("track_player_info.html", "r") as file:
-            self.template = Template(file.read())
-
-    def update_display(
-        self,
-        track: ActiveTrack,
-        playback_status: Literal["stopped", "playing", "paused"],
-    ) -> str:
-        playback_status_html: str = ""
-        match playback_status:
-            case "stopped":
-                playback_status_html = """
-                <span class="playback-stopped">Stopped</span>
-                """
-            case "paused":
-                playback_status_html = """
-                <span class='playback-paused'>Paused</span>
-            """
-            case "playing":
-                playback_status_html = """
-                <span class="playback-playing">Playing</span>
-            """
-        return self.template.substitute(
-            {
-                "title": track.title,
-                "playback_status": playback_status_html,
-                "artist": track.artist,
-                "album": track.album,
-                "track_number": track.track_number,
-                "total_tracks": track.total_tracks if track.total_tracks != 0 else "?",
-            }
-        )
+            self.template = file.read()

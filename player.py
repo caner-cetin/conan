@@ -10,7 +10,7 @@ import gevent
 import urllib3
 from gevent.pool import Group
 from loguru import logger
-from PySide6.QtCore import QObject, QSize, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, QSize, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QIcon, QMovie, QPainter, QPixmap, Qt
 from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -18,17 +18,14 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
     QLabel,
-    QListView,
-    QListWidget,
     QMainWindow,
     QPushButton,
-    QTextEdit,
     QVBoxLayout,
 )
 from urllib3.poolmanager import PoolManager
 
+from backend import sse_queue
 from constants import ActiveTrack, BeefWeb
-from templates import TrackPlayerInfoTemplate
 
 
 @final
@@ -46,8 +43,7 @@ class TrackInfo(QWebEngineView):
         )
 
 
-# https://editor.swagger.io/
-# import from url https://raw.githubusercontent.com/hyperblast/beefweb/96091e9e15a32211e499f447e9112d334311bcb3/docs/player-api.yml
+
 @final
 class Foobar2K(QObject):
     api_url: str | None
@@ -79,13 +75,10 @@ class Foobar2K(QObject):
 
         self.__active_track_changed.connect(self.__spawn_fetch_and_update_artwork)
         self.__active_track_changed.connect(self.__spawn_get_active_track_info)
-        self.__playback_state_changed.connect(self.__render_player_info_html)
-        self.__playback_state_changed.connect(self.__update_playback_controls)
+        self.__active_track_changed.connect(self.__stream_active_track_info)
+        self.__playback_state_changed.connect(self.__handle_playback_state_changed)
 
         self.__thread_pool = Group()
-
-        self.__track_player_info_template = TrackPlayerInfoTemplate()
-        self.__render_player_info_html()
 
     def __setup_ui(self):
         self.cover_art: bytes | None = None
@@ -127,15 +120,29 @@ class Foobar2K(QObject):
 
         self.player_info_layout_rhs = QVBoxLayout()
 
-        self.track_player_info_container = QTextEdit()
-        self.track_player_info_container.setMaximumHeight(80)
-        self.track_player_info_container.setReadOnly(True)
-
-        self.in_queue_list = QListWidget()
-        self.in_queue_list.setMaximumHeight(64)
+        self.track_player_info_container = QWebEngineView()
+        self.track_player_info_container.setMaximumHeight(144)
+        self.track_player_info_container_page = self.track_player_info_container.page()
+        self.track_player_info_container_page.setBackgroundColor(QColor(0, 0, 0, 0))
+        self.track_player_info_container_page_settings = (
+            self.track_player_info_container_page.settings()
+        )
+        self.track_player_info_container_page_settings.setAttribute(
+            QWebEngineSettings.WebAttribute.JavascriptEnabled, True
+        )
+        self.track_player_info_container_page_settings.setAttribute(
+            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
+        )
+        # the reason why we load the HTML from Flask rather than from container itself directly is pretty simple:
+        # we are using HTMX in track player info template
+        # any page opened by web engine view or any html loaded inside the web engine view is not served by a server
+        # they are all files
+        # files cannot have origin
+        # http requests cannot work without an origin
+        # so we are just pointing to the flask server instead
+        self.track_player_info_container.load(QUrl("http://127.0.0.1:31311"))
 
         self.player_info_layout_rhs.addWidget(self.track_player_info_container)
-        self.player_info_layout_rhs.addWidget(self.in_queue_list)
 
         self.player_info_layout = QHBoxLayout()
         self.player_info_layout.addLayout(self.player_info_layout_lhs)
@@ -196,21 +203,15 @@ class Foobar2K(QObject):
             return
         if isinstance(data, dict):
             st = BeefWeb.PlayerState.State(**data)
-            old_st = self.__state
-            self.__state = st
-            if old_st is not None:
-                self.__active_track_changed.emit(
-                    (
-                        st.player.activeItem.playlistId
-                        != old_st.player.activeItem.playlistId
-                    )
-                    or (st.player.activeItem.index != old_st.player.activeItem.index)
-                )
+            if self.__state is not None:
+                old_st = self.__state.model_copy()
+                self.__state = st
                 self.__playback_state_changed.emit(
                     st.player.playbackState != old_st.player.playbackState
                 )
 
             else:
+                self.__state = st
                 self.__active_track_changed.emit(True)
                 self.__playback_state_changed.emit(True)
         else:
@@ -329,47 +330,33 @@ class Foobar2K(QObject):
                     track_number=int(cols[4]),
                     total_tracks=int(cols[5]) if cols[5] != "?" else 0,
                 )
-                self.__playback_state_changed.emit(True)
 
     @Slot()
     def __spawn_get_active_track_info(self):
         self.__thread_pool.spawn(self.__get_active_track_info)
 
-    @Slot()
-    def __render_player_info_html(self):
-        self.track_player_info_container.setHtml(
-            self.__track_player_info_template.update_display(
-                track=self.__active_track
-                if self.__active_track is not None
-                else ActiveTrack(
-                    artist="me",
-                    title="zzz...",
-                    album="play something..",
-                    track_number=0,
-                    total_tracks=0,
-                    length="",
-                ),
-                playback_status=self.__state.player.playbackState
-                if self.__state is not None
-                else "stopped",
-            )
-        )
+    @Slot()  # pyright: ignore[reportArgumentType]
+    def __stream_active_track_info(self, changed: bool):
+        if changed:
+            sse_queue.put(self.__active_track)
 
-    @Slot()
-    def __update_playback_controls(self):
+    @Slot()  # pyright: ignore[reportArgumentType]
+    def __handle_playback_state_changed(self, changed: bool):
         if self.__state is None:
             return
-        ps = self.__state.player.playbackState
-        if ps == "stopped":
-            self.stop_button.setDisabled(True)
-            self.play_pause_button.setDisabled(False)
-            self.play_pause_button.setIcon(self.play_icon)
-        if ps == "playing":
-            self.play_pause_button.setIcon(self.pause_icon)
-            self.stop_button.setDisabled(False)
-        if ps == "paused":
-            self.play_pause_button.setIcon(self.play_icon)
-            self.stop_button.setDisabled(False)
+        if changed:
+            ps = self.__state.player.playbackState
+            sse_queue.put(ps)
+            if ps == "stopped":
+                self.stop_button.setDisabled(True)
+                self.play_pause_button.setDisabled(False)
+                self.play_pause_button.setIcon(self.play_icon)
+            if ps == "playing":
+                self.play_pause_button.setIcon(self.pause_icon)
+                self.stop_button.setDisabled(False)
+            if ps == "paused":
+                self.play_pause_button.setIcon(self.play_icon)
+                self.stop_button.setDisabled(False)
 
     @Slot()
     def __reschedule_greenlets(self):

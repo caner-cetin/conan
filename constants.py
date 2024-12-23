@@ -1,5 +1,5 @@
 from dataclasses import asdict, dataclass
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from pydantic import BaseModel
 
@@ -35,14 +35,17 @@ class AudioFeatures:
     def from_dict(cls, data: dict[str, Any]) -> "AudioFeatures":
         return cls(**data)
 
+PlaybackState = Literal["stopped", "playing", "paused"]
 
+# https://editor.swagger.io/
+# import from url https://raw.githubusercontent.com/hyperblast/beefweb/96091e9e15a32211e499f447e9112d334311bcb3/docs/player-api.yml
 class BeefWeb:
     # /player
     class PlayerState:
         class Player(BaseModel):
             info: "BeefWeb.PlayerState.Info"
             activeItem: "BeefWeb.PlayerState.ActiveItem"
-            playbackState: Literal["stopped", "playing", "paused"]
+            playbackState: PlaybackState
             volume: "BeefWeb.PlayerState.Volume"
 
         class Volume(BaseModel):

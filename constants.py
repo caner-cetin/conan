@@ -35,7 +35,27 @@ class AudioFeatures:
     def from_dict(cls, data: dict[str, Any]) -> "AudioFeatures":
         return cls(**data)
 
+
+@dataclass
+class ActiveTrack:
+    # Name of the artist of the track. Checks following metadata fields, in this order: “artist”, “album artist”, “composer”, “performer”.
+    artist: str
+    # Title of the track. If “title” metadata field is missing, file name is used instead.
+    title: str
+    # Name of the album specified track belongs to. Checks following metadata fields, in this order: “album”, “venue”.
+    album: str
+    # Two-digit index of specified track within the album. Available only when “tracknumber” field is present in track’s metadata.
+    track_number: int
+    # Two-digit number of tracks within the album specified track belongs to. Available only when “totaltracks” field is present in track’s metadata.
+    total_tracks: int
+    # Length of the track, formatted as [HH:]MM:SS.
+    length: str
+    # Full path of the file. Note that %path_sort% should be use for sorting instead of %path%.
+    path: str
+
+
 PlaybackState = Literal["stopped", "playing", "paused"]
+
 
 # https://editor.swagger.io/
 # import from url https://raw.githubusercontent.com/hyperblast/beefweb/96091e9e15a32211e499f447e9112d334311bcb3/docs/player-api.yml
@@ -85,21 +105,34 @@ class BeefWeb:
         class Item(BaseModel):
             columns: list[str]
 
+            def to_active_track(self) -> ActiveTrack:
+                c = self.columns
+                if "/" in c[4]:
+                    c[4] = c[4].split("/")[0]
+                return ActiveTrack(
+                    artist=c[0],
+                    title=c[1],
+                    album=c[2],
+                    length=c[3],
+                    track_number=int(c[4]),
+                    total_tracks=int(c[5]) if c[5] != "?" else 0,
+                    path=c[6],
+                )
 
-@dataclass
-class ActiveTrack:
-    # Name of the artist of the track. Checks following metadata fields, in this order: “artist”, “album artist”, “composer”, “performer”.
-    artist: str
-    # Title of the track. If “title” metadata field is missing, file name is used instead.
-    title: str
-    # Name of the album specified track belongs to. Checks following metadata fields, in this order: “album”, “venue”.
-    album: str
-    # Two-digit index of specified track within the album. Available only when “tracknumber” field is present in track’s metadata.
-    track_number: int
-    # Two-digit number of tracks within the album specified track belongs to. Available only when “totaltracks” field is present in track’s metadata.
-    total_tracks: int
-    # Length of the track, formatted as [HH:]MM:SS.
-    length: str
+            @classmethod
+            @property
+            def query_columns(cls):  # pyright: ignore[reportDeprecated] we are at 3.11 *shrug*, look into this if we use 3.13 somehow
+                # all available columns are listed under doc/titleformat_help.html
+                return [
+                    "%artist%]",
+                    "%title%]",
+                    "%album%]",
+                    "%length%]",
+                    "%tracknumber%]",
+                    "%totaltracks%]",
+                    "%path%]",
+                ]
 
 
-_ = BeefWeb.PlayerState.State.model_rebuild()
+BeefWeb.PlayerState.State.model_rebuild()
+BeefWeb.PlaylistItems.Playlist.model_rebuild()

@@ -225,7 +225,7 @@ class MusicAnalyzer(QMainWindow):
 
     def setup_ui(self):
         self.setWindowTitle("Conan")
-        self.setMinimumSize(1600, 900)
+        self.setMinimumSize(1700, 900)
 
         # Create central widget and main layout
         central_widget = QWidget()

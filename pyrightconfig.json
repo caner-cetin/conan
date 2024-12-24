@@ -4,5 +4,6 @@
   "reportAny": "none",
   "reportUnusedParameter": "none",
   "reportUnknownMemberType": "none",
-  "reportUnknownVariableType": "none"
+  "reportUnknownVariableType": "none",
+  "reportExplicitAny": "none"
 }

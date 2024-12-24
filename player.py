@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, final
+from typing import IO, Any, Iterable, final
 from urllib.parse import quote
 
 from gevent import monkey
@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 from urllib3.poolmanager import PoolManager
 
-from backend import sse_queue
+from backend import SSEMessage, sse_queue
 from constants import ActiveTrack, BeefWeb
 
 
@@ -43,7 +43,6 @@ class TrackInfo(QWebEngineView):
         )
 
 
-
 @final
 class Foobar2K(QObject):
     api_url: str | None
@@ -51,6 +50,7 @@ class Foobar2K(QObject):
     __active_track_changed = Signal(bool)
     __playback_state_changed = Signal(bool)
     __active_track: ActiveTrack | None = None
+    __up_next: ActiveTrack | None = None
     __player_state_poll_timer: QTimer | None = None
     player_layout: QVBoxLayout
 
@@ -75,14 +75,13 @@ class Foobar2K(QObject):
 
         self.__active_track_changed.connect(self.__spawn_fetch_and_update_artwork)
         self.__active_track_changed.connect(self.__spawn_get_active_track_info)
-        self.__active_track_changed.connect(self.__stream_active_track_info)
         self.__playback_state_changed.connect(self.__handle_playback_state_changed)
 
         self.__thread_pool = Group()
 
     def __setup_ui(self):
         self.cover_art: bytes | None = None
-        self.cover_art_scale = QSize(120, 120)
+        self.cover_art_scale = QSize(180, 180)
 
         self.player_info_layout_lhs = QVBoxLayout()
 
@@ -97,20 +96,27 @@ class Foobar2K(QObject):
         self.play_pause_button.clicked.connect(self.__spawn_play_or_pause)
         self.stop_button = QPushButton()
         self.stop_button.clicked.connect(self.__spawn_stop)
+        self.skip_button = QPushButton()
+        self.skip_button.clicked.connect(self.__spawn_skip)
 
         self.playback_control_icon_size = QSize(24, 24)
         self.pause_icon = QIcon("./assets/icons/pause.svg")
         self.play_icon = QIcon("./assets/icons/play.svg")
         self.stop_icon = QIcon("./assets/icons/stop.svg")
+        self.skip_icon = QIcon("./assets/icons/skip.svg")
         self.play_pause_button.setIcon(self.pause_icon)
         self.play_pause_button.setIconSize(self.playback_control_icon_size)
         self.stop_button.setIcon(self.stop_icon)
         self.stop_button.setIconSize(self.playback_control_icon_size)
+        self.skip_button.setIcon(self.skip_icon)
+        self.skip_button.setIconSize(self.playback_control_icon_size)
 
         self.playback_controls.addButton(self.play_pause_button)
         self.playback_controls.addButton(self.stop_button)
+        self.playback_controls.addButton(self.skip_button)
         self.playback_controls_layout.addWidget(self.play_pause_button)
         self.playback_controls_layout.addWidget(self.stop_button)
+        self.playback_controls_layout.addWidget(self.skip_button)
 
         self.player_info_layout_lhs.addWidget(self.cover_art_container)
         self.player_info_layout_lhs.addLayout(self.playback_controls_layout)
@@ -121,7 +127,7 @@ class Foobar2K(QObject):
         self.player_info_layout_rhs = QVBoxLayout()
 
         self.track_player_info_container = QWebEngineView()
-        self.track_player_info_container.setMaximumHeight(144)
+        self.track_player_info_container.setMaximumHeight(200)
         self.track_player_info_container_page = self.track_player_info_container.page()
         self.track_player_info_container_page.setBackgroundColor(QColor(0, 0, 0, 0))
         self.track_player_info_container_page_settings = (
@@ -164,9 +170,12 @@ class Foobar2K(QObject):
             self.__thread_pool.kill()
 
     def __make_request(
-        self, method: str, url: str
+        self,
+        method: str,
+        url: str,
+        body: bytes | IO[Any] | Iterable[bytes] | str | None = None,
     ) -> tuple[bool, dict[str, Any] | bytes | None, urllib3.BaseHTTPResponse]:
-        response = self.__http.request(method, url, timeout=2.0)
+        response = self.__http.request(method, url, timeout=2.0, body=body)
         if response.status != 200:
             return False, None, response
 
@@ -181,12 +190,23 @@ class Foobar2K(QObject):
                 if ps == "paused" or ps == "stopped":
                     self.__make_request("POST", f"{self.api_url}/player/play")
                 elif ps == "playing":
-                    self.__make_request("POST", f"{self.api_url}/player/stop")
+                    self.__make_request("POST", f"{self.api_url}/player/pause")
         except Exception as e:
             print(f"Error in play command: {e}")
 
     def __spawn_play_or_pause(self):
         self.__thread_pool.spawn(self.__play_or_pause)
+
+    def __skip(self):
+        try:
+            if self.__up_next:
+                self.__make_request("POST", f"{self.api_url}/player/next")
+        except Exception as e:
+            print(f"Error in skip command: {e}")
+
+    @Slot()
+    def __spawn_skip(self):
+        self.__thread_pool.spawn(self.__skip)
 
     def __stop(self):
         try:
@@ -206,9 +226,17 @@ class Foobar2K(QObject):
             if self.__state is not None:
                 old_st = self.__state.model_copy()
                 self.__state = st
+                self.__active_track_changed.emit(
+                    (
+                        st.player.activeItem.playlistId
+                        != old_st.player.activeItem.playlistId
+                    )
+                    or (st.player.activeItem.index != old_st.player.activeItem.index)
+                )
                 self.__playback_state_changed.emit(
                     st.player.playbackState != old_st.player.playbackState
                 )
+                # todo: track queue change for up next
 
             else:
                 self.__state = st
@@ -289,23 +317,14 @@ class Foobar2K(QObject):
             and self.__state.player.activeItem.playlistId is not None
         )
         if valid_playlist_id:
-            # all available columns are listed under doc/titleformat_help.html
-            columns = [
-                "%artist%]",
-                "%title%]",
-                "%album%]",
-                "%length%]",
-                "%tracknumber%]",
-                "%totaltracks%]",
-            ]
-            columns_param = quote(json.dumps(columns))
+            columns_param = quote(json.dumps(BeefWeb.PlaylistItems.Item.query_columns))
 
             success, data, response = self.__make_request(
                 "GET",
                 (
                     f"{self.api_url}/playlists/"
                     f"{self.__state.player.activeItem.playlistId}/items/"
-                    f"0:{self.__state.player.activeItem.index+1}?"
+                    f"{self.__state.player.activeItem.index}:2?"
                     f"columns={columns_param}"
                 ),
             )
@@ -317,28 +336,38 @@ class Foobar2K(QObject):
 
             if isinstance(data, dict):
                 playlist = BeefWeb.PlaylistItems.Playlist(**data)
-                cols = playlist.playlistItems.items[
-                    self.__state.player.activeItem.index
-                ].columns
-                for i, col in enumerate(cols):
-                    cols[i] = col.strip().replace('"', "", -1)
-                self.__active_track = ActiveTrack(
-                    artist=cols[0],
-                    title=cols[1],
-                    album=cols[2],
-                    length=cols[3],
-                    track_number=int(cols[4]),
-                    total_tracks=int(cols[5]) if cols[5] != "?" else 0,
-                )
+                for i, item in enumerate(playlist.playlistItems.items):
+                    for j, _ in enumerate(item.columns):
+                        playlist.playlistItems.items[i].columns[j] = (
+                            playlist.playlistItems.items[i]
+                            .columns[j]
+                            .strip()
+                            .replace('"', "", -1)
+                        )
+                queue = playlist.playlistItems.items
+                self.__active_track = queue[0].to_active_track()
+                sse_queue.put(SSEMessage(sent="ActiveTrack", data=self.__active_track))
+                if len(queue) > 1:
+                    self.__up_next = queue[1].to_active_track()
+                    sse_queue.put(SSEMessage(sent="UpNext", data=self.__up_next))
 
     @Slot()
     def __spawn_get_active_track_info(self):
         self.__thread_pool.spawn(self.__get_active_track_info)
 
-    @Slot()  # pyright: ignore[reportArgumentType]
-    def __stream_active_track_info(self, changed: bool):
-        if changed:
-            sse_queue.put(self.__active_track)
+    @Slot()
+    def __queue_track(self):
+        """
+        todo: implement dis 
+        curl --header "Content-Type: application/json" \
+        --request POST \
+        --data '{"index":13, "async":true, "replace":false, "play":false, "items":["G:/Music/Conan/2012 - Monnos/04. Golden Axe.mp3"]}' \
+        "http://uri/api/playlists/{playlist id}/items/add"
+        with queue order coming from the similar tracks section inside the track analysis info
+        how?
+        i dont know good fucking luck
+        """
+        pass
 
     @Slot()  # pyright: ignore[reportArgumentType]
     def __handle_playback_state_changed(self, changed: bool):
@@ -346,7 +375,7 @@ class Foobar2K(QObject):
             return
         if changed:
             ps = self.__state.player.playbackState
-            sse_queue.put(ps)
+            sse_queue.put(SSEMessage(sent="PlaybackState", data=ps))
             if ps == "stopped":
                 self.stop_button.setDisabled(True)
                 self.play_pause_button.setDisabled(False)
@@ -406,3 +435,4 @@ class Foobar2K(QObject):
         """
         if len(self.__thread_pool.greenlets) > 0:
             gevent.sleep(0)
+

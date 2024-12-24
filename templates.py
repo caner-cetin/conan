@@ -1,10 +1,10 @@
 import json
 from string import Template
-from typing import Literal, final
+from typing import final
 
 import numpy as np
 
-from constants import ActiveTrack, AudioFeatures
+from constants import AudioFeatures
 
 
 @final
@@ -16,7 +16,7 @@ class TrackDisplayTemplate:
     def update_display(
         self,
         features: AudioFeatures,
-        similar_tracks: list[tuple[str, float]],
+        similar_tracks: list[tuple[str, float, AudioFeatures]],
         label: str,
     ) -> str:
         # Convert genre data to JSON strings for JavaScript
@@ -49,7 +49,6 @@ class TrackDisplayTemplate:
             "danceable": features.danceability[0],
             "genre_labels": genre_labels,
             "genre_probabilities": genre_probabilities,
-            "similar_tracks": self.__format_similar_tracks(similar_tracks),
             "metadata": self.__format_metadata(features.metadata),
             "metadata_title": label,
             "pitch": np.round(features.pitch),
@@ -69,7 +68,7 @@ class TrackDisplayTemplate:
         infos.append(f"""
             <div class="info-item">
                 <span class="label">track</span>
-                <span class="value">{metadata['track']}/{metadata['track_total']}</span> 
+                <span class="value">{metadata['track']}/{metadata.get("track_total", "?")}</span> 
             </div>              
         """)
         ############
@@ -112,15 +111,6 @@ class TrackDisplayTemplate:
         """)
         return "\n".join(infos)
 
-    def __format_similar_tracks(self, tracks: list[tuple[str, float]]) -> str:
-        return "\n".join(
-            f"""
-            <div class="similar-track">
-                <span class="similar-name">{name}</span>
-            </div>
-        """
-            for name, _ in tracks
-        )
 
 
 @final

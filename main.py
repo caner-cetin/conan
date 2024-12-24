@@ -6,16 +6,24 @@ from datetime import datetime
 from pathlib import Path
 from typing import final
 
+from dotenv import load_dotenv
+
+setenv = load_dotenv()
+if setenv is False:
+    raise Exception("environment variables must be set")
+
 import essentia.standard as es
 import numpy as np
-from dotenv import load_dotenv
+from loguru import logger
 from numpy.typing import NDArray
 from PySide6.QtCore import (
+    QSize,
     Qt,
     QThread,
     Signal,
     Slot,
 )
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -138,7 +146,7 @@ class AnalysisWorker(QThread):
         # This algorithm throws an exception if the input signal is empty.
         onset_rate, _ = self.onset_rate(audio44k)
 
-        tag: TinyTag = TinyTag.get(audio_path)  # pyright: ignore[reportUnknownMemberType]
+        tag: TinyTag = TinyTag.get(audio_path)
         return AudioFeatures(
             bpm=float(bpm),
             rhythm_strength=float(rhythm_strength),
@@ -226,6 +234,12 @@ class MusicAnalyzer(QMainWindow):
     def setup_ui(self):
         self.setWindowTitle("Conan")
         self.setMinimumSize(1700, 900)
+        app_icon = QIcon()
+        app_icon.addFile("./assets/favicon/16x16.png", QSize(16, 16))
+        app_icon.addFile("./assets/favicon/32x32.png", QSize(32, 32))
+        app_icon.addFile("./assets/favicon/150x150.png", QSize(150, 150))
+        app_icon.addFile("./assets/favicon/192x192.png", QSize(192, 192))
+        self.setWindowIcon(app_icon)
 
         # Create central widget and main layout
         central_widget = QWidget()
@@ -261,6 +275,7 @@ class MusicAnalyzer(QMainWindow):
 
         self.track_list_container.addWidget(self.track_filter)
         self.track_list_container.addWidget(self.tracks_list)
+        self.track_list_container.addWidget(self.f2k.similar_tracks)
         self.track_list_container.addLayout(self.f2k.player_layout)
 
         self.track_info = TrackInfo()
@@ -330,16 +345,19 @@ class MusicAnalyzer(QMainWindow):
         genre_overlap = len(base_top_genres & other_top_genres)
         overlap_bonus = genre_overlap / N
 
-        return (dot_product + overlap_bonus) / 2
+        return (dot_product + overlap_bonus) / 2.0
 
     def get_similar_tracks(
         self, track_path: str, n: int = 5
-    ) -> list[tuple[str, float]]:
+    ) -> list[tuple[str, float, AudioFeatures]]:
         if track_path not in self.tracks_features:
+            logger.debug(
+                f"{track_path} not found in the track list for similar track analysis."
+            )
             return []
-
+        logger.trace(f"Analyzing similar tracks for: {track_path}")
         base_features = self.tracks_features[track_path]
-        similarities = []
+        similarities: list[tuple[str, float, AudioFeatures]] = []
 
         # Get weights from sliders
         w_rhythm = self.weight_sliders["rhythm"].value()
@@ -353,27 +371,36 @@ class MusicAnalyzer(QMainWindow):
 
         for other_path, other_features in self.tracks_features.items():
             if other_path == track_path:
+                logger.debug(
+                    f"Compared label ({other_path}) is same with base label, skipping..."
+                )
                 continue
+            logger.trace(f"Comparing {track_path} with {other_path}")
 
             if isinstance(base_features.metadata["artist"], list) and isinstance(
                 other_features.metadata["artist"], list
             ):
-                k = "".join(base_features.metadata["artist"])
+                k = "".join(other_features.metadata["artist"])
                 seen = artist_seen.get(k, 0)
                 if seen >= 3:
+                    logger.debug(
+                        f"There are already three recommendations from the artist {k}, skipping..."
+                    )
                     continue
                 if seen == 0:
                     artist_seen[k] = 1
                 else:
                     artist_seen[k] += 1
                 artist_bonus = (
-                    0.2
+                    np.float32(0.2)
                     if other_features.metadata["artist"][0]
                     == base_features.metadata["artist"][0]
-                    else 0
+                    else np.float32(0.0)
                 )
+                logger.trace(f"Similar artist bonus is set to {artist_bonus}")
             else:
-                artist_bonus = 0
+                logger.trace("Similar artist bonus is set to 0.")
+                artist_bonus = np.float32(0.0)
 
             genre_sim = self.calculate_genre_similarity(
                 dict(
@@ -383,8 +410,9 @@ class MusicAnalyzer(QMainWindow):
                     zip(other_features.genre_labels, other_features.genre_probabilities)
                 ),
             )
+            logger.trace(f"Genre similarity: {genre_sim}")
             genre_dist = w_genre * (1 - genre_sim)
-
+            logger.trace(f"Genre distance: {genre_dist}")
             rhythm_dist = w_rhythm * np.mean(
                 [
                     np.abs(base_features.bpm - other_features.bpm) / 200,
@@ -400,7 +428,7 @@ class MusicAnalyzer(QMainWindow):
                     ),
                 ]
             )
-
+            logger.trace(f"Rhythm distance: {rhythm_dist}")
             timbral_dist = w_timbral * np.mean(
                 [
                     np.mean(
@@ -417,13 +445,13 @@ class MusicAnalyzer(QMainWindow):
                     ),
                 ]
             )
-
+            logger.trace(f"Timbral distance: {timbral_dist}")
             instrumental_dist = w_instrumental * np.mean(
                 np.abs(
                     np.subtract(base_features.instrumental, other_features.instrumental)
                 )
             )
-
+            logger.trace(f"Instrumental distance: {instrumental_dist}")
             tonal_dist = w_tonal * np.mean(
                 [
                     np.abs(base_features.pitch - other_features.pitch),
@@ -439,7 +467,7 @@ class MusicAnalyzer(QMainWindow):
                     ),
                 ]
             )
-
+            logger.trace(f"Tonal distance: {tonal_dist}")
             mood_dist = w_mood * np.mean(
                 [
                     np.abs(
@@ -464,8 +492,8 @@ class MusicAnalyzer(QMainWindow):
                     ),
                 ]
             )
-
-            total_distance = (
+            logger.trace(f"Mood distance: {mood_dist}")
+            total_distance: np.float32 = (
                 rhythm_dist
                 + tonal_dist
                 + instrumental_dist
@@ -473,13 +501,16 @@ class MusicAnalyzer(QMainWindow):
                 + genre_dist
                 + timbral_dist
             ) / (w_rhythm + w_tonal + w_instrumental + w_mood + w_genre + w_timbral)
-
-            total_distance = max(0, total_distance - artist_bonus)
+            total_distance_f = max(0.0, total_distance.item() - artist_bonus.item())
+            similarity = 1.0 - total_distance_f
+            logger.trace(f"Total distance: {total_distance_f}")
+            logger.trace(f"Similarity: {similarity}")
             similarities.append(
-                (other_path, 1 - total_distance)
+                (other_path, similarity, other_features)
             )  # Convert distance to similarity
 
         similarities.sort(key=lambda x: x[1], reverse=True)
+        logger.trace(f"Final similarity list: {similarities}")
         return similarities[:n]
 
     @Slot()
@@ -575,10 +606,13 @@ class MusicAnalyzer(QMainWindow):
 
         if selected_path:
             features = self.tracks_features[selected_path]
-            similar_tracks = self.get_similar_tracks(selected_path)
+            similar_tracks = self.get_similar_tracks(selected_path, n=10)
             html_content = TrackDisplayTemplate().update_display(
                 features, similar_tracks, selected_path
             )
+            self.f2k.similar_tracks.clear_tracks()
+            for track in similar_tracks:
+                self.f2k.similar_tracks.add_track(track[2])
             self.track_info.setHtml(html_content)
 
     @Slot()
@@ -628,9 +662,6 @@ class MusicAnalyzer(QMainWindow):
 
 
 if __name__ == "__main__":
-    setenv = load_dotenv()
-    if setenv is False:
-        raise Exception("environment variables must be set")
     app = QApplication(sys.argv)
     window = MusicAnalyzer(app)
     server_thread = threading.Thread(target=run_server, daemon=True)

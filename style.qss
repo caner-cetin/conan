@@ -23,7 +23,7 @@
  QProgressBar::chunk {
      background-color: #c3dce5;
 }
- QListWidget {
+QListWidget {
      background-color: #110c22;
      border: 1px solid #c3dce5;
      font-size: 11px;

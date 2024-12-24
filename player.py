@@ -16,16 +16,21 @@ from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QFrame,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
+    QWidget,
 )
 from urllib3.poolmanager import PoolManager
 
 from backend import SSEMessage, sse_queue
-from constants import ActiveTrack, BeefWeb
+from constants import ActiveTrack, AudioFeatures, BeefWeb
 
 
 @final
@@ -44,6 +49,117 @@ class TrackInfo(QWebEngineView):
 
 
 @final
+class SimilarTracksWidget(QGroupBox):
+    def __init__(
+        self,
+        title: str = "Similar Tracks (select a track from the list above)",
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(title, parent)
+        self.track_widgets: list[SimilarTrackItemWidget] = []
+        group_layout = QVBoxLayout(self)
+        group_layout.setContentsMargins(5, 5, 5, 5)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
+        self.tracks_container = QWidget()
+
+        self.tracks_layout = QVBoxLayout(self.tracks_container)
+        self.tracks_layout.setSpacing(2)
+        self.tracks_layout.setContentsMargins(0, 0, 0, 0)
+        self.tracks_layout.addStretch()
+
+        self.scroll_area.setWidget(self.tracks_container)
+
+        group_layout.addWidget(self.scroll_area)
+
+    def add_track(self, af: AudioFeatures):
+        # Create track widget
+        track_widget = SimilarTrackItemWidget(af)
+
+        # Add separator if not the first item
+        if len(self.track_widgets) > 0:
+            separator = QFrame()
+            separator.setFrameShape(QFrame.Shape.HLine)
+            separator.setFrameShadow(QFrame.Shadow.Sunken)
+            self.tracks_layout.insertWidget(self.tracks_layout.count() - 1, separator)
+
+        self.tracks_layout.insertWidget(self.tracks_layout.count() - 1, track_widget)
+        self.track_widgets.append(track_widget)
+
+    def remove_track(self, index: int):
+        """Remove a track at the specified index"""
+        if 0 <= index < len(self.track_widgets):
+            # Remove the track widget
+            track_widget = self.track_widgets.pop(index)
+
+            # Remove the separator if it exists (for all but the first item)
+            if index > 0:
+                # Get the separator (it's the widget before the track)
+                separator = self.tracks_layout.itemAt(index * 2 - 1).widget()
+                separator.deleteLater()
+            elif len(self.track_widgets) > 0:
+                # If removing first item and more items exist, remove the next separator
+                separator = self.tracks_layout.itemAt(1).widget()
+                separator.deleteLater()
+
+            # Remove and delete the track widget
+            track_widget.deleteLater()
+
+    def clear_tracks(self, layout: QLayout | None = None):
+        target = layout if layout else self.tracks_layout
+        while target.count():
+            item = target.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+            else:
+                self.clear_tracks(item.layout())
+
+
+@final
+class SimilarTrackItemWidget(QWidget):
+    play_track = Signal(str)  # file path
+    queue_track = Signal(str)  # file path
+
+    def __init__(
+        self,
+        af: AudioFeatures,
+        parent: QWidget | None = None,
+        f: Qt.WindowType = Qt.WindowType.Widget,
+    ):
+        super().__init__(parent, f)
+        self.active_track = af
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(5, 2, 5, 2)
+
+        btn_icon_size = QSize(12, 12)
+        play_now_icon = QIcon("./assets/icons/play.svg")
+        play_now_btn = QPushButton()
+        play_now_btn.setIcon(play_now_icon)
+        play_now_btn.setIconSize(btn_icon_size)
+
+        queue_next_icon = QIcon("./assets/icons/queue-next.svg")
+        queue_next_btn = QPushButton()
+        queue_next_btn.setIcon(queue_next_icon)
+        queue_next_btn.setIconSize(btn_icon_size)
+
+        title_label = QLabel(f"{af.metadata['artist'][0]} - {af.metadata['title'][0]}")  # pyright: ignore [reportIndexIssue]
+        title_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.addWidget(title_label)
+        layout.addStretch()
+        layout.addWidget(play_now_btn)
+        layout.addWidget(queue_next_btn)
+
+
+@final
 class Foobar2K(QObject):
     api_url: str | None
     __state: BeefWeb.PlayerState.State | None = None
@@ -53,6 +169,7 @@ class Foobar2K(QObject):
     __up_next: ActiveTrack | None = None
     __player_state_poll_timer: QTimer | None = None
     player_layout: QVBoxLayout
+    similar_tracks: SimilarTracksWidget
 
     def __init__(self, parent: QMainWindow) -> None:
         self.api_url = os.getenv("API_URL")
@@ -157,6 +274,8 @@ class Foobar2K(QObject):
         self.player_layout = QVBoxLayout()
         self.player_layout.addLayout(self.player_info_layout)
         self.player_layout.addLayout(self.playback_controls_layout)
+
+        self.similar_tracks = SimilarTracksWidget()
 
         self.__show_placeholder()
 
@@ -435,4 +554,3 @@ class Foobar2K(QObject):
         """
         if len(self.__thread_pool.greenlets) > 0:
             gevent.sleep(0)
-

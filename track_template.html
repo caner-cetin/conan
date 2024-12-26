@@ -312,10 +312,10 @@
         new Chart(document.getElementById('genreChart'), {
           type: 'bar',
           data: {
-            labels: $genre_labels,
+            labels: $genre_labels.slice(0,9),
             datasets: [{
               label: 'Probability',
-              data: $genre_probabilities,
+              data: $genre_probabilities.slice(0,9),
               backgroundColor: 'rgba(195, 220, 229, 0.5)',
               borderColor: 'rgba(195, 220, 229, 1)',
               borderWidth: 1

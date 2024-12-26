@@ -1,8 +1,6 @@
-import hashlib
 import json
 import sys
 import threading
-from datetime import datetime
 from pathlib import Path
 from typing import final
 
@@ -12,7 +10,6 @@ setenv = load_dotenv()
 if setenv is False:
     raise Exception("environment variables must be set")
 
-import essentia.standard as es
 import numpy as np
 from loguru import logger
 from numpy.typing import NDArray
@@ -41,12 +38,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from tinytag import TinyTag
 from typing_extensions import override
 
 from backend import run_server
 from constants import AudioFeatures
-from models import Classifier
+from models import Analyzer
 from player import Foobar2K, TrackInfo
 from templates import TrackDisplayTemplate
 
@@ -60,118 +56,7 @@ class AnalysisWorker(QThread):
         super().__init__()
         self.music_dir = music_dir
         self.analyzing = True
-        self.init_analyzers()
-        self.classifiers = Classifier()
-
-    def init_analyzers(self):
-        self.rhythm_extractor = es.RhythmExtractor2013()
-        self.pitch_extractor = es.PredominantPitchMelodia()
-        self.loudness = es.Loudness()
-        self.mfcc = es.MFCC()
-        self.onset_rate = es.OnsetRate()
-        self.dc_remover = es.DCRemoval()
-        self.equalizer = es.EqualLoudness()
-        self.bandpass = es.BandPass(
-            cutoffFrequency=2000,
-            bandwidth=19980,
-            sampleRate=44100,
-        )
-        self.moving_average = es.MovingAverage()
-        self.loader = es.MonoLoader()
-
-    def _get_file_hash(self, file_path: Path) -> str:
-        hasher = hashlib.md5()
-        with open(file_path, "rb") as f:
-            buf = f.read(1024 * 1024)
-            hasher.update(buf)
-        return hasher.hexdigest()
-
-    def analyze_track(self, audio_path: Path) -> AudioFeatures:
-        # Load and preprocess audio
-        self.loader.configure(
-            sampleRate=16000,
-            resampleQuality=4,
-            filename=str(audio_path),
-        )
-        audio: NDArray[np.float32] = self.loader()
-        self.loader.configure(
-            sampleRate=44100, resampleQuality=4, filename=str(audio_path)
-        )
-        audio44k: NDArray[np.float32] = self.loader()
-        # short explanation: remove the DC component from the audio signal for removing the noise from the audio.
-        # long explanation by claude:
-        #
-        # DC offset is basically a constant shift in the audio signal that's at 0 Hz (meaning it doesn't change/vibrate at all), and human ears can only hear sounds between roughly 20 Hz and 20,000 Hz.
-        # But DC offset can cause two big problems:
-        # - It wastes headroom in your audio signal. Think of it like trying to fit a tall person in a room with a low ceiling - if they're standing on a platform (DC offset),
-        #   they might hit their head. Similarly, if your audio wave is shifted up or down, you have less room for the actual audio signal before it distorts.
-        # - It can mess up your audio analysis algorithms. Many audio analysis tools (like those in Essentia) expect the audio to be centered around zero.
-        #   If there's DC offset, it can throw off measurements of things like amplitude, energy, and other features you might want to analyze.
-        audio = self.dc_remover(audio)
-        # short explanation: equalize the audio for mimicing the human ears.
-        # long explanation by claude:
-        #
-        # Think about how your ears work. When you listen to music, your ears don't hear all frequencies equally well - they're naturally better at hearing some frequencies than others.
-        # For example, you hear mid-range frequencies (like people talking) much better than very low or very high frequencies.
-        # The equal loudness filter tries to mimic how human ears work. It boosts or reduces different frequencies to match how we actually hear them.
-        # It's like having a special pair of headphones that automatically adjusts different sounds to match how your ears naturally process them.
-        # Example:
-        # - Without the filter: A very low bass note and a mid-range piano note might have the same volume in the audio file
-        # - With the filter: The bass note gets boosted because our ears naturally hear it as quieter than it actually is
-        audio = self.equalizer(audio)
-        # short explanation: weakent the frequencies outside of 20 Hz to 20 KHz frequency range for stripping audio to coverage of human ear.
-        # kinda long explanation by me:
-        # by stripping noise outside of the frequencies capable of human ear, we assure that algorithms and models actually run on the data that is relevant to the human ear, such as
-        # Low bass frequencies (important for genre detection)
-        # High frequencies (important for detecting cymbals, hi-hats, etc.)
-        # Mid-range frequencies (important for detecting vocals, guitars, etc.)
-        audio = self.bandpass(audio)
-        # short explanation: i dont know
-        # short explanation from my friend: smooths out the signal, it makes the analysis better trust me
-        # long explanation by claude: claude doesnt know either
-        # it works tho
-        audio = self.moving_average(audio)
-
-        # Rhythm analysis
-        # according to https://essentia.upf.edu/reference/std_RhythmExtractor2013.html
-        bpm, beats, beats_conf, _, _ = self.rhythm_extractor(audio)
-        rhythm_strength = np.mean(beats_conf)
-
-        pitch, _ = self.pitch_extractor(audio)
-        genre_labels, genre_probabilities = self.classifiers.genre(audio)
-
-        _, mfcc_coeffs = self.mfcc(audio)
-        # https://essentia.upf.edu/reference/streaming_OnsetRate.html
-        # Please note that due to a dependence on the Onsets algorithm, this algorithm is only valid for audio signals with a sampling rate of 44100Hz.
-        # This algorithm throws an exception if the input signal is empty.
-        onset_rate, _ = self.onset_rate(audio44k)
-
-        tag: TinyTag = TinyTag.get(audio_path)
-        return AudioFeatures(
-            bpm=float(bpm),
-            rhythm_strength=float(rhythm_strength),
-            rhythm_regularity=float(np.std(np.diff(beats))),
-            danceability=self.classifiers.danceability(audio),
-            mood_sad=self.classifiers.sad(audio),
-            mood_relaxed=self.classifiers.relaxed(audio),
-            mood_aggressive=self.classifiers.aggressive(audio),
-            last_modified=datetime.fromtimestamp(
-                audio_path.stat().st_mtime
-            ).isoformat(),
-            file_hash=self._get_file_hash(audio_path),
-            genre_probabilities=genre_probabilities,
-            genre_labels=genre_labels,
-            loudness=self.loudness(audio),
-            pitch=np.mean(pitch).item(),
-            mirex=self.classifiers.mirex(audio),
-            mfcc_mean=np.mean(mfcc_coeffs, axis=0).tolist(),
-            mfcc_var=np.var(mfcc_coeffs, axis=0).tolist(),
-            onset_rate=onset_rate.tolist(),
-            metadata=tag.as_dict(),
-            instrumental=self.classifiers.instrumental_or_vocal(audio),
-            engagement=self.classifiers.engaging(audio),
-            vocal_gender=self.classifiers.vocal_gender(audio),
-        )
+        self.analyser = Analyzer()
 
     @override
     def run(self):
@@ -185,7 +70,7 @@ class AnalysisWorker(QThread):
             if not self.analyzing:
                 break
 
-            features = self.analyze_track(audio_file)
+            features = self.analyser.analyze_track(audio_file)
             if features:
                 self.track_analyzed.emit(str(audio_file), features)
 
@@ -345,7 +230,7 @@ class MusicAnalyzer(QMainWindow):
         genre_overlap = len(base_top_genres & other_top_genres)
         overlap_bonus = genre_overlap / N
 
-        return (dot_product + overlap_bonus) / 2.0
+        return np.mean((dot_product + overlap_bonus) / 2.0).item()
 
     def get_similar_tracks(
         self, track_path: str, n: int = 5
@@ -376,30 +261,22 @@ class MusicAnalyzer(QMainWindow):
                 )
                 continue
             logger.trace(f"Comparing {track_path} with {other_path}")
-
-            if isinstance(base_features.metadata["artist"], list) and isinstance(
-                other_features.metadata["artist"], list
-            ):
-                k = "".join(other_features.metadata["artist"])
-                seen = artist_seen.get(k, 0)
+            if other_features.metadata.artist is not None:
+                k = other_features.metadata.artist
+                seen = artist_seen.setdefault(k, 0)
                 if seen >= 3:
                     logger.debug(
                         f"There are already three recommendations from the artist {k}, skipping..."
                     )
                     continue
-                if seen == 0:
-                    artist_seen[k] = 1
-                else:
-                    artist_seen[k] += 1
+                artist_seen[k] += 1
                 artist_bonus = (
                     np.float32(0.2)
-                    if other_features.metadata["artist"][0]
-                    == base_features.metadata["artist"][0]
+                    if other_features.metadata.artist == base_features.metadata.artist
                     else np.float32(0.0)
                 )
                 logger.trace(f"Similar artist bonus is set to {artist_bonus}")
             else:
-                logger.trace("Similar artist bonus is set to 0.")
                 artist_bonus = np.float32(0.0)
 
             genre_sim = self.calculate_genre_similarity(
@@ -431,18 +308,8 @@ class MusicAnalyzer(QMainWindow):
             logger.trace(f"Rhythm distance: {rhythm_dist}")
             timbral_dist = w_timbral * np.mean(
                 [
-                    np.mean(
-                        np.abs(
-                            np.subtract(
-                                base_features.mfcc_mean, other_features.mfcc_mean
-                            )
-                        )
-                    ),
-                    np.mean(
-                        np.abs(
-                            np.subtract(base_features.mfcc_var, other_features.mfcc_var)
-                        )
-                    ),
+                    np.abs(base_features.mfcc_mean - other_features.mfcc_mean),
+                    np.abs(base_features.mfcc_var - other_features.mfcc_var),
                 ]
             )
             logger.trace(f"Timbral distance: {timbral_dist}")
@@ -552,30 +419,7 @@ class MusicAnalyzer(QMainWindow):
 
     @Slot(str, AudioFeatures)  # pyright: ignore[reportArgumentType]
     def on_track_analyzed(self, path: str, features: AudioFeatures):
-        artist_name: str
-
-        if isinstance(features.metadata["artist"], list):
-            if len(features.metadata["artist"]) > 1:
-                artist_name = "-".join(features.metadata["artist"])
-            else:
-                artist_name = features.metadata["artist"][0]
-        elif isinstance(features.metadata["title"], str):
-            artist_name = features.metadata["title"]
-        else:
-            artist_name = "Unknown"
-
-        song_title: str
-        if isinstance(features.metadata["title"], list):
-            if len(features.metadata["title"]) > 1:
-                song_title = "-".join(features.metadata["title"])
-            else:
-                song_title = features.metadata["title"][0]
-        elif isinstance(features.metadata["title"], str):
-            song_title = features.metadata["title"]
-        else:
-            song_title = "Unknown"
-
-        label = f"{artist_name} - {song_title}"
+        label = f"{features.metadata.artist if features.metadata.artist else 'Unknown Artist'} - {features.metadata.title if features.metadata.title else 'Unknown Title'}"
         self.tracks_list.addItem(label)
         self.tracks_features[label] = features
 
@@ -624,7 +468,7 @@ class MusicAnalyzer(QMainWindow):
             if not filename.endswith(".json"):
                 filename += ".json"
             serialized_features = {
-                path: features.to_dict()
+                path: features.model_dump()
                 for path, features in self.tracks_features.items()
             }
             with open(filename, "w") as f:
@@ -639,8 +483,7 @@ class MusicAnalyzer(QMainWindow):
             with open(filename, "r") as f:
                 data = json.load(f)
                 self.tracks_features = {
-                    path: AudioFeatures.from_dict(feat_dict)
-                    for path, feat_dict in data.items()
+                    path: AudioFeatures(**feat_dict) for path, feat_dict in data.items()
                 }
 
             self.tracks_list.clear()

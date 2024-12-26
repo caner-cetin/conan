@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 from urllib3.poolmanager import PoolManager
 
 from backend import SSEMessage, sse_queue
-from constants import ActiveTrack, AudioFeatures, BeefWeb
+from constants import ActiveTrack, BeefWeb, AudioFeatures
 
 
 @final
@@ -149,7 +149,7 @@ class SimilarTrackItemWidget(QWidget):
         queue_next_btn.setIcon(queue_next_icon)
         queue_next_btn.setIconSize(btn_icon_size)
 
-        title_label = QLabel(f"{af.metadata['artist'][0]} - {af.metadata['title'][0]}")  # pyright: ignore [reportIndexIssue]
+        title_label = QLabel(f"{af.metadata.artist} - {af.metadata.title}")
         title_label.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )

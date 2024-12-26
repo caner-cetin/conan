@@ -1,11 +1,77 @@
-from dataclasses import asdict, dataclass
-from typing import Any, Literal, TypeAlias
+from typing import Literal, final
 
 from pydantic import BaseModel
+from tinytag import TinyTag
 
 
-@dataclass
-class AudioFeatures:
+@final
+class AudioMetadata(BaseModel):
+    filename: str | None = None
+    filesize: int = 0
+
+    duration: float | None = None
+    channels: int | None = None
+    bitrate: float | None = None
+    bitdepth: int | None = None
+    samplerate: int | None = None
+    artist: str | None = None
+    albumartist: str | None = None
+    composer: str | None = None
+    album: str | None = None
+    disc: int | None = None
+    disc_total: int | None = None
+    title: str | None = None
+    track: int | None = None
+    track_total: int | None = None
+    genre: str | None = None
+    year: str | None = None
+    comment: str | None = None
+
+    @staticmethod
+    def from_tag(tag: TinyTag) -> "AudioMetadata":
+        # we cant use .as_dict() method of TinyTag
+        # for some dumbfuck reason
+        #
+        #   >>> tag.artist
+        #       'Power Trip'
+        #   >>> tag.as_dict()["artist"]
+        #       ['Power Trip']
+        #
+        # every str field is converted to list[str] even through that they are guaranteed to be one element strings.
+        # why? who the fuck knows.
+        #
+        # cant we just embed the TinyTag in Pydantic model?
+        #
+        # pydantic.errors.PydanticSchemaGenerationError: Unable to generate pydantic-core schema for <class 'tinytag.tinytag.TinyTag'>. 
+        # Set `arbitrary_types_allowed=True` in the model_config to ignore this error or implement `__get_pydantic_core_schema__` on your type to fully support it.
+        return AudioMetadata(
+            filename=tag.filename,
+            filesize=tag.filesize,
+            duration=tag.duration,
+            channels=tag.channels,
+            bitrate=tag.bitrate,
+            bitdepth=tag.bitdepth,
+            samplerate=tag.samplerate,
+            artist=tag.artist,
+            albumartist=tag.albumartist,
+            composer=tag.composer,
+            album=tag.album,
+            disc=tag.disc,
+            disc_total=tag.disc_total,
+            title=tag.title,
+            track=tag.track,
+            track_total=tag.track_total,
+            genre=tag.genre,
+            year=tag.year,
+            comment=tag.comment,
+        )
+
+
+AudioMetadata.model_rebuild()
+
+
+@final
+class AudioFeatures(BaseModel):
     bpm: float
     rhythm_strength: float
     rhythm_regularity: float
@@ -16,8 +82,8 @@ class AudioFeatures:
     mirex: list[float]
     genre_probabilities: list[float]
     genre_labels: list[str]
-    mfcc_mean: list[float]
-    mfcc_var: list[float]
+    mfcc_mean: float
+    mfcc_var: float
     onset_rate: list[float]
     instrumental: list[float]
     engagement: list[float]
@@ -26,18 +92,11 @@ class AudioFeatures:
     loudness: float
     last_modified: str
     file_hash: str
-    metadata: dict[str, str | float | list[str]]
-
-    def to_dict(self) -> dict[str, float | str | list[float]]:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AudioFeatures":
-        return cls(**data)
+    metadata: AudioMetadata
+    energy: float | None = None
 
 
-@dataclass
-class ActiveTrack:
+class ActiveTrack(BaseModel):
     # Name of the artist of the track. Checks following metadata fields, in this order: “artist”, “album artist”, “composer”, “performer”.
     artist: str
     # Title of the track. If “title” metadata field is missing, file name is used instead.

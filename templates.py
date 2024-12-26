@@ -4,7 +4,7 @@ from typing import final
 
 import numpy as np
 
-from constants import AudioFeatures
+from constants import AudioFeatures, AudioMetadata
 
 
 @final
@@ -62,55 +62,29 @@ class TrackDisplayTemplate:
 
         return self.template.substitute(template_vars)
 
-    def __format_metadata(self, metadata: dict[str, str | float | list[str]]) -> str:
-        infos: list[str] = []
-        ###########
-        infos.append(f"""
+    def __format_metadata(self, metadata: AudioMetadata) -> str:
+        return f"""
             <div class="info-item">
                 <span class="label">track</span>
-                <span class="value">{metadata['track']}/{metadata.get("track_total", "?")}</span> 
-            </div>              
-        """)
-        ############
-        infos.append(f"""
+                <span class="value">{metadata.track}/{metadata.track_total if metadata.track_total else '?'}</span> 
+            </div>  
             <div class="info-item">
                 <span class="label">duration</span>
-                <span class="value">{metadata['duration']:.2f}s</span> 
-            </div>        
-        """)
-        ###########
-        an: str
-        if isinstance(metadata["album"], list):
-            an = metadata["album"][0]
-        elif isinstance(metadata["album"], str):
-            an = metadata["album"]
-        else:
-            an = "unknown"
-        infos.append(f"""
+                <span class="value">{int(metadata.duration // 60) if metadata.duration else 0}:{int(metadata.duration % 60) if metadata.duration else 0:02d}:.2fs</span> 
+            </div>
             <div class="info-item">
                 <span class="label">album</span>
-                <span class="value">{an}s</span> 
-            </div> 
-        """)
-        ###########
-        infos.append(f"""
+                <span class="value">{metadata.album}</span> 
+            </div>
             <div class="info-item">
                 <span class="label">bitrate</span>
-                <span class="value">{metadata["bitrate"]:.0f} kbps</span> 
-            </div> 
-        """)
-        #############
-        fs: float = 0
-        if isinstance(metadata["filesize"], (float, int)):
-            fs = metadata["filesize"] * (10**-6)
-        infos.append(f"""
+                <span class="value">{metadata.bitrate:.0f} kbps</span> 
+            </div>
             <div class="info-item">
                 <span class="label">filesize</span>
-                <span class="value">{fs:.2f} MB</span> 
-            </div>              
-        """)
-        return "\n".join(infos)
-
+                <span class="value">{metadata.filesize * (10 ** -6):.2f} MB</span> 
+            </div>
+        """
 
 
 @final

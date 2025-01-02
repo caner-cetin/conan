@@ -1,55 +1,147 @@
 ## conan
 smol music recommendation engine based on local library folders.
 
+- [conan](#conan)
+- [features](#features)
+- [download](#download)
+- [compile yourself](#compile-yourself)
+  - [libs](#libs)
+  - [ffmpeg](#ffmpeg)
+  - [essentia](#essentia)
+  - [glslang](#glslang)
+  - [gtest](#gtest)
+  - [things may help you in development](#things-may-help-you-in-development)
+- [why](#why)
+  - [why do you have `time.h` at include folder](#why-do-you-have-timeh-at-include-folder)
+  - [why did you create this project](#why-did-you-create-this-project)
+- [todo](#todo)
+
 
 ![alt text](image.png)
 *ui is not final*
-## run
-only tested for windows and WSL.
+## features
+zzz...
+## download
+there is a x86_64 Linux binary in releases. i will compile for windows (as, it is the main reason why i use C++ ), but you can use like how I do now. Install WSL2, install Ubuntu 24.04 or any distro you prefer, run the binary, you will use the application like it is on native Linux desktop.
+## compile yourself
+trust me, this is not worth your time, and do not follow this. if you follow these steps, and for uncertain reasons you decide to compile this application, you are my best friend from now on.
 
-### foobar2000
-install [beefweb from here](https://github.com/hyperblast/beefweb/releases/tag/v0.8). 
-
-then from f2k, files -> settings -> tools -> beefweb remote control -> tick allow remote connections and set port. create `.env` file in root folder and fill it in
+### libs
 ```bash
-# dont forget the /api at the end
-API_URL=http://localhost:8880/api
+sudo add-apt-repository ppa:oibaf/graphics-drivers
+sudo apt-get update
+sudo apt-get install \
+    libva-dev \
+    libyaml-dev \
+    libvdpau-dev \
+    libx11-dev \
+    libsamplerate0-dev \
+    libprotobuf-dev \
+    protobuf-compiler \
+    libglslang-dev \
+    libeigen3-dev \
+    libfftw3-dev \
+    libchromaprint-dev \
+    libspdlog-dev \
+    libfmt-dev \
+    libtagc0-dev \
+    libva-drm2 \
+    libbz2-dev \
+    liblzma-dev \
+    zlib1g-dev \
+    qt6-base-dev \
+    qt6-base-dev-tools
 ```
-### py
-essentia-tensorflow does not support Windows (essentia have support, but we need the classifier models). WSL have auto passthrough for X11, so we can run any GUI applications in it.
-
-optional: setup gpu
+### ffmpeg
+this is gonna override your default ffmpeg installation, but you can bump to latest version after compiling essentia with your package manager like `apt-get install ffmpeg` 
 ```bash
-sudo apt install nvidia-cuda-toolkit nvidia-cudnn
-sudo ln -s /usr/lib/x86_64-linux-gnu/libcudart.so /usr/local/cuda/lib64/libcudart.so.11.0
-sudo ln -s /usr/local/cuda/lib64/libcublas.so.12 /usr/local/cuda/lib64/libcublas.so.11
-sudo ln -s /usr/local/cuda/lib64/libcublasLt.so.12 /usr/local/cuda/lib64/libcublasLt.so.11
-sudo ln -s /usr/local/cuda/lib64/libcufft.so.11 /usr/local/cuda/lib64/libcufft.so.10
-sudo ln -s /usr/local/cuda/lib64/libcusparse.so.12 /usr/local/cuda/lib64/libcusparse.so.11
-export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+mkdir -p src/vendor
+wget https://ffmpeg.org/releases/ffmpeg-4.4.tar.xz -O src/vendor/ffmpeg-4.4.tar.xz
+mkdir -p src/vendor/ffmpeg && tar -xf src/vendor/ffmpeg-4.4.tar.xz -C src/vendor/ffmpeg --strip-components=1 && rm src/vendor/ffmpeg-4.4.tar.xz
+cp misc/ffmpeg.patch src/vendor/ffmpeg/ffmpeg.patch
+cd src/vendor/ffmpeg
+patch -i ffmpeg.patch
+./configure --disable-doc \
+--disable-htmlpages \
+--disable-manpages \
+--disable-podpages \
+--disable-txtpages \
+--pkg-config-flags="--static" \
+--ld="g++"
+sudo make
+sudo make install
+sudo rm libavdevice/decklink*
 ```
+### essentia
+```bash
+git clone https://github.com/MTG/essentia.git
+cd essentia
+python3 waf configure --build-static --with-tensorflow
+python3 waf
+sudo python3 waf install
+```
+### glslang
+```bash
+git clone https://github.com/KhronosGroup/glslang.git
+cd glslang
+python3 update_glslang_sources.py
+BUILD_DIR="build"
+cmake -B $BUILD_DIR -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$(pwd)/install"
+make -j4 install
+sudo ln -s /usr/local/bin/glslang /usr/bin/glslang
+sudo ln -s /usr/local/bin/spirv-remap /usr/bin/spirv-remap
+```
+### gtest
+```bash
+sudo apt-get install -y libgtest-dev cmake
+mkdir -p $HOME/build
+cd $HOME/build
+sudo cmake /usr/src/googletest/googletest
+sudo make
+sudo cp lib/libgtest* /usr/lib/
+cd ..
+sudo rm -rf build
+sudo mkdir /usr/local/lib/googletest
+sudo ln -s /usr/lib/libgtest.a /usr/local/lib/googletest/libgtest.a
+sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/googletest/libgtest_main.a
+```
+
+everything started from this [small comment](<https://github.com/MTG/essentia/issues/1411#issuecomment-2564929319)>), and slowly devolved into insanity.
+
+### things may help you in development
+
+everything is pretty straightforward, factory default QT and other libraries. i will add "watch out for this" if i have any of them:
+
+- generate binary headers for embedding assets
 
 ```bash
-# skip if you have pyenv
-curl https://pyenv.run | bash
-pyenv install 3.11.11
-pyenv virtualenv 3.11.11 conan
-pyenv activate conan
-uv pip install -r requirements.txt
-# libnss3 and libasound2t64 is required to run browser engine in QT.
-sudo apt-get install libnss3 libasound2t64
-python main.py
-```
-if you see any errors, it is %100 related to a missing library in WSL system. read the error, and you will find out what is missing. 
-
-for accessing your Windows folders from the WSL (which, how I use this right now), use the /mnt/ drive in your home folder to access the windows drives
-```bash
-$ ls /mnt/g/music/Pallbearer/2017\ -\ Heartless/
-'01. I Saw the End.mp3'  '03. Lie of Survival.mp3'     '05. Cruel Road.mp3'  '07. A Plea for Understanding.mp3'   folder.jpg
-'02. Thorns.mp3'         '04. Dancing in Madness.mp3'  '06. Heartless.mp3'    
+assets/asset_converter.py assets/no_cover_art.gif noCoverArtGif > src/include/assets/no_cover_art.h
 ```
 
-not tested in linux and macos. 
+
+```cpp
+#include "assets/no_cover_art.h"
+#include <QMovie>
+#include <QByteArray>
+
+QByteArray gifData(reinterpret_cast<const char*>(Resources::noCoverArtGif), Resources::noCoverArtGif_size);
+QMovie *movie = new QMovie();
+movie->setDevice(new QBuffer(&gifData));
+movie->start();
+
+QLabel *label = new QLabel();
+label->setMovie(movie);
+```
+
+## why
+
+### why do you have `time.h` at include folder
+
+ffmpeg's libavcodec library has `time.h` header that clashes with system default `time.h` and if you dont include the system `time.h` before including the libavcodec headers, everything goes boom. 
+
+### why did you create this project
+
+i have no idea but i will get back to you with a reason soon.
 
 
 ## todo

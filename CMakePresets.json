@@ -1,0 +1,32 @@
+{
+  "version": 3,
+  "configurePresets": [
+      {
+          "name": "native",
+          "displayName": "Native Build",
+          "description": "Build for the native platform",
+          "generator": "Unix Makefiles",
+          "binaryDir": "${sourceDir}/build/native"
+      },
+      {
+          "name": "arm64-linux",
+          "displayName": "ARM64 Linux",
+          "description": "Cross-compile for ARM64 Linux",
+          "generator": "Unix Makefiles",
+          "binaryDir": "${sourceDir}/build/arm64-linux",
+          "cacheVariables": {
+              "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/toolchain-arm64-linux.cmake"
+          }
+      },
+      {
+          "name": "amd64-windows",
+          "displayName": "AMD64 Windows",
+          "description": "Cross-compile for AMD64 Windows",
+          "generator": "Unix Makefiles",
+          "binaryDir": "${sourceDir}/build/amd64-windows",
+          "cacheVariables": {
+              "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/toolchain-amd64-windows.cmake"
+          }
+      }
+  ]
+}

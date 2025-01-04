@@ -4,15 +4,28 @@
 #include "crow/app.h"
 #include "crow/common.h"
 #include "crow/http_response.h"
+#include <qmutex.h>
+#include <qobject.h>
 #define CROW_ENFORCE_WS_SPEC
 #include "crow/websocket.h"
 
+HttpWorker::HttpWorker(QObject *parent) {
+  if (parent) {
+    setParent(parent);
+  }
+}
 void HttpWorker::run() {
   crow::SimpleApp server;
   CROW_WEBSOCKET_ROUTE(server, "/ws")
-      .onopen([&](crow::websocket::connection &conn) { this->client = &conn; })
-      .onclose([&](crow::websocket::connection &conn,
-                   const std::string &reason) { this->client = nullptr; });
+      .onopen([&](crow::websocket::connection &conn) {
+        QMutexLocker locker(&mutex);
+        client = &conn;
+      })
+      .onclose(
+          [&](crow::websocket::connection &conn, const std::string &reason) {
+            QMutexLocker locker(&mutex);
+            client = nullptr;
+          });
   CROW_ROUTE(server, "/")
       .methods(crow::HTTPMethod::GET)([](const crow::request &req) {
         auto response = crow::response();

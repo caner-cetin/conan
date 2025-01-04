@@ -30,6 +30,8 @@ using namespace essentia;
 using namespace essentia::standard;
 std::string formatDuration(float duration);
 int main(int argc, char **argv) {
+  qputenv("QT_FATAL_WARNINGS", "1");
+
   QApplication app(argc, argv);
 
   // Application setup
@@ -56,7 +58,7 @@ int main(int argc, char **argv) {
   }
 
   // Main content area
-  QHBoxLayout *contentLayout = new QHBoxLayout(centralWidget);
+  QHBoxLayout *contentLayout = new QHBoxLayout();
   mainLayout->addLayout(contentLayout);
 
   // Left side: Main content area
@@ -104,9 +106,10 @@ int main(int argc, char **argv) {
   }
 
   // Initialize HTTP server
-  HttpWorker *server = new HttpWorker();
+  HttpWorker *server = new HttpWorker(&app);
   server->start();
-  app.connect(&app, &QApplication::aboutToQuit, server, &HttpWorker::destroy);
+  QObject::connect(&app, &QApplication::aboutToQuit, server,
+                   &HttpWorker::destroy);
 
   window.show();
   return app.exec();

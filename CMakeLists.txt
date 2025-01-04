@@ -22,6 +22,8 @@ set(CMAKE_CXX_STANDARD 17)              # Use C++17 standard
 set(CMAKE_CXX_STANDARD_REQUIRED ON)     # Require C++17 support (don't fall back to previous versions)
 set(CMAKE_CXX_EXTENSIONS ON)            # Allow compiler-specific extensions
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # Generate compile_commands.json for tooling
+set(GALLIUM_DRIVER d3d12)               # https://askubuntu.com/questions/1530856/wsl2-mesa-error-zink-failed-to-choose-pdev-after-glxinfo-b
+set(QT_QPA_PLATFORM offscreen)          # https://github.com/NVlabs/instant-ngp/discussions/300
 
 # Configure Qt-specific build settings
 set(CMAKE_AUTOMOC ON)    # Enable Qt's Meta-Object Compiler

@@ -6,10 +6,11 @@
 #include "no_cover_art.h"
 #include <QBuffer>
 #include <QMovie>
+#include <QSvgRenderer>
 #include <QWebEngineSettings>
-#include <memory>
 #include <qabstractbutton.h>
 #include <qcolor.h>
+#include <qicon.h>
 #include <qpushbutton.h>
 #include <qsize.h>
 #include <qurl.h>
@@ -50,8 +51,12 @@ CoverArtLabel::CoverArtLabel(QWidget *parent) {
 
   auto placeholder_gif = hex_to_byte(Resources::NoCoverArtGif::hex,
                                      Resources::NoCoverArtGif::size);
+  placeholder_buffer = new QBuffer(this);
+  placeholder_buffer->setData(placeholder_gif);
+  placeholder_buffer->open(QIODevice::ReadOnly);
+                                  
   placeholder = new QMovie(parent);
-  placeholder->setDevice(new QBuffer(&placeholder_gif));
+  placeholder->setDevice(placeholder_buffer);
   placeholder->setScaledSize(QSize(180, 180));
   placeholder->start();
 
@@ -60,6 +65,17 @@ CoverArtLabel::CoverArtLabel(QWidget *parent) {
   if (parent) {
     setParent(parent);
   }
+}
+
+CoverArtLabel::~CoverArtLabel() {
+    if (placeholder) {
+        placeholder->stop();
+        delete placeholder;
+    }
+    if (placeholder_buffer) {
+        placeholder_buffer->close();
+        delete placeholder_buffer;
+    }
 }
 
 TrackPlayerInfo::TrackPlayerInfo(QWidget *parent) {

@@ -2,6 +2,7 @@
 
 #include <qabstractbutton.h>
 #include <qboxlayout.h>
+#include <qbuffer.h>
 #include <qbuttongroup.h>
 #include <qlabel.h>
 #include <qlistwidget.h>
@@ -30,9 +31,11 @@ private:
 class CoverArtLabel : public QLabel {
 public:
   CoverArtLabel(QWidget *parent = nullptr);
+  ~CoverArtLabel();
 
 private:
   QMovie *placeholder;
+  QBuffer *placeholder_buffer;
 };
 
 class TrackPlayerInfo : public QWebEngineView {

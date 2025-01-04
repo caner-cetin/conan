@@ -24,9 +24,9 @@ smol music recommendation engine based on local library folders.
 - [todo](#todo)
 
 ## features
-zzz...
+..
 ## download
-there is a x86_64 Linux binary in releases. i will compile for windows (as, it is the main reason why i use C++ ), but you can use like how I do now. Install WSL2, install Ubuntu 24.04 or any distro you prefer, run the binary, you will use the application like it is on native Linux desktop.
+...
 ## compile yourself
 trust me, this is not worth your time. if you follow these steps, and for uncertain reasons you decide to compile this application, you are my best friend from now on.
 

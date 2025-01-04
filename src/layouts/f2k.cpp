@@ -23,12 +23,12 @@ PlaybackControlsLayout::PlaybackControlsLayout(QWidget *parent) {
   QSize icon_size(24, 24);
   play_pause->setIconSize(icon_size);
   play_pause->setIcon(
-      *hex_to_icon(Resources::PlayIcon::hex, Resources::PlayIcon::size, "SVG"));
+      hex_to_icon(Resources::PlayIcon::hex, Resources::PlayIcon::size, "SVG"));
   skip->setIcon(
-      *hex_to_icon(Resources::SkipIcon::hex, Resources::SkipIcon::size, "SVG"));
+      hex_to_icon(Resources::SkipIcon::hex, Resources::SkipIcon::size, "SVG"));
   skip->setIconSize(icon_size);
   stop->setIcon(
-      *hex_to_icon(Resources::StopIcon::hex, Resources::StopIcon::size, "SVG"));
+      hex_to_icon(Resources::StopIcon::hex, Resources::StopIcon::size, "SVG"));
   stop->setIconSize(icon_size);
   group = new QButtonGroup(parent);
   group->addButton(play_pause);

@@ -30,7 +30,7 @@ set(CMAKE_AUTOUIC ON)    # Enable automatic compilation of Qt's UI files
 
 # Find required external packages 
 find_package(Crow REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Test WebEngineWidgets WebEngineCore)  # Qt6 components
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Test WebEngineWidgets WebEngineCore Svg)  # Qt6 components
 find_package(spdlog REQUIRED)    # Logging library
 find_package(glslang REQUIRED)   # GLSL compiler
 find_package(Protobuf REQUIRED)  # Protocol Buffers
@@ -162,6 +162,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Test
     Qt6::WebEngineWidgets
     Qt6::WebEngineCore
+    Qt6::Svg
     # Logging and formatting
     spdlog::spdlog
     fmt

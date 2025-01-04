@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
 
   // Application setup
   auto favicon =
-      *hex_to_icon(Resources::Favicon::hex, Resources::Favicon::size, "ICO");
+      hex_to_icon(Resources::Favicon::hex, Resources::Favicon::size, "ICO");
   app.setWindowIcon(favicon);
   app.setStyleSheet(Resources::Stylesheet::string);
 

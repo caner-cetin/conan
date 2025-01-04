@@ -61,7 +61,8 @@ sudo apt-get install \
     zlib1g-dev \
     qt6-base-dev \
     qt6-base-dev-tools \
-    qt6-webengine-dev
+    qt6-webengine-dev \
+    qt6-svg-dev
 ```
 ### ffmpeg
 this is gonna override your default ffmpeg installation, but you can bump to latest version after compiling essentia with your package manager like `apt-get install ffmpeg`. you dont need the compiled binaries, we only need libraries, and we include them from `vendor/ffmpeg` folder. after `sudo make install` and compiling essentia, you can just do `apt-get install ffmpeg` then override everything.

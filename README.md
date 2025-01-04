@@ -1,6 +1,9 @@
 ## conan
 smol music recommendation engine based on local library folders.
 
+![alt text](image.png)
+*ui is not final*
+
 - [conan](#conan)
 - [features](#features)
 - [download](#download)
@@ -10,21 +13,22 @@ smol music recommendation engine based on local library folders.
   - [essentia](#essentia)
   - [glslang](#glslang)
   - [gtest](#gtest)
+  - [tensorflow](#tensorflow)
+  - [crow](#crow)
   - [things may help you in development](#things-may-help-you-in-development)
+    - [generate binary headers for embedding assets](#generate-binary-headers-for-embedding-assets)
+    - [vscode setup](#vscode-setup)
 - [why](#why)
   - [why do you have `time.h` at include folder](#why-do-you-have-timeh-at-include-folder)
   - [why did you create this project](#why-did-you-create-this-project)
 - [todo](#todo)
 
-
-![alt text](image.png)
-*ui is not final*
 ## features
 zzz...
 ## download
 there is a x86_64 Linux binary in releases. i will compile for windows (as, it is the main reason why i use C++ ), but you can use like how I do now. Install WSL2, install Ubuntu 24.04 or any distro you prefer, run the binary, you will use the application like it is on native Linux desktop.
 ## compile yourself
-trust me, this is not worth your time, and do not follow this. if you follow these steps, and for uncertain reasons you decide to compile this application, you are my best friend from now on.
+trust me, this is not worth your time. if you follow these steps, and for uncertain reasons you decide to compile this application, you are my best friend from now on.
 
 ### libs
 ```bash
@@ -38,7 +42,6 @@ sudo apt-get install \
     libsamplerate0-dev \
     libprotobuf-dev \
     protobuf-compiler \
-    libglslang-dev \
     libeigen3-dev \
     libfftw3-dev \
     libchromaprint-dev \
@@ -48,12 +51,22 @@ sudo apt-get install \
     libva-drm2 \
     libbz2-dev \
     liblzma-dev \
+    uuid-dev \
+    libcap-dev \
+    libzmq3-dev \
+    libpwquality-dev \
+    libmemcached-dev \
+    libjemalloc-dev
+    uwsgi \
     zlib1g-dev \
     qt6-base-dev \
-    qt6-base-dev-tools
+    qt6-base-dev-tools \
+    qt6-webengine-dev
 ```
 ### ffmpeg
-this is gonna override your default ffmpeg installation, but you can bump to latest version after compiling essentia with your package manager like `apt-get install ffmpeg` 
+this is gonna override your default ffmpeg installation, but you can bump to latest version after compiling essentia with your package manager like `apt-get install ffmpeg`. you dont need the compiled binaries, we only need libraries, and we include them from `vendor/ffmpeg` folder. after `sudo make install` and compiling essentia, you can just do `apt-get install ffmpeg` then override everything.
+
+if you dont want to install 4.4, pick a version [lower than 5](https://github.com/MTG/essentia/issues/1248), and pick a version that released before [September 15, 2021](https://patchwork.ffmpeg.org/project/ffmpeg/patch/AM7PR03MB6660E1F8A57B76DF6578148B8FDB9@AM7PR03MB6660.eurprd03.prod.outlook.com/) [from here](https://ffmpeg.org/releases)
 ```bash
 mkdir -p src/vendor
 wget https://ffmpeg.org/releases/ffmpeg-4.4.tar.xz -O src/vendor/ffmpeg-4.4.tar.xz
@@ -105,17 +118,32 @@ sudo mkdir /usr/local/lib/googletest
 sudo ln -s /usr/lib/libgtest.a /usr/local/lib/googletest/libgtest.a
 sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/googletest/libgtest_main.a
 ```
+### tensorflow
 
-everything started from this [small comment](<https://github.com/MTG/essentia/issues/1411#issuecomment-2564929319)>), and slowly devolved into insanity.
+```bash
+# get appropiate filename here https://www.tensorflow.org/install/lang_c#download_and_extract
+FILENAME=libtensorflow-gpu-linux-x86_64.tar.gz.1
+wget -q --no-check-certificate https://storage.googleapis.com/tensorflow/versions/2.18.0/${FILENAME}
+sudo tar -C /usr/local -xzf ${FILENAME}
+```
+
+### crow
+
+```bash
+wget https://github.com/CrowCpp/Crow/releases/download/v1.2.0/Crow-1.2.0-Linux.deb 
+dpkg -i Crow-1.2.0-Linux.deb
+cp -r /usr/include/crow src/include
+sudo rm -rf /usr/include/crow
+```
 
 ### things may help you in development
 
 everything is pretty straightforward, factory default QT and other libraries. i will add "watch out for this" if i have any of them:
 
-- generate binary headers for embedding assets
+#### generate binary headers for embedding assets
 
 ```bash
-assets/asset_converter.py assets/no_cover_art.gif noCoverArtGif > src/include/assets/no_cover_art.h
+assets/asset_converter.py assets/no_cover_art.gif NoCoverArtGif > src/include/assets/no_cover_art.h
 ```
 
 
@@ -124,7 +152,7 @@ assets/asset_converter.py assets/no_cover_art.gif noCoverArtGif > src/include/as
 #include <QMovie>
 #include <QByteArray>
 
-QByteArray gifData(reinterpret_cast<const char*>(Resources::noCoverArtGif), Resources::noCoverArtGif_size);
+QByteArray gifData(reinterpret_cast<const char*>(Resources::NoCoverArtGif), Resources::noCoverArtGif_size);
 QMovie *movie = new QMovie();
 movie->setDevice(new QBuffer(&gifData));
 movie->start();
@@ -133,6 +161,50 @@ QLabel *label = new QLabel();
 label->setMovie(movie);
 ```
 
+#### vscode setup
+
+c/c++ official Microsoft extension's LSP is absolutely horrible thanks to including bajillions of headers from ffmpeg, QT and Essentia, sometimes taking four seconds to reanalyze a single header file. install clangd extension (on neovim and zed, clang is the default LSP)
+
+use c/c++ only for debugging, so your workspace `settings.json` should contain the following:
+```json
+  "clangd.arguments": [
+    "-log=verbose",
+    "-pretty",
+    "--background-index",
+    "--compile-commands-dir=build/native"
+  ],
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.autocomplete": "disabled",
+  "C_Cpp.errorSquiggles": "disabled",
+  "C_Cpp.formatting": "disabled",
+  "[cpp]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+  },
+  "maptz.regionfolder": {
+    "[cpp]": {
+      "foldEndRegex": "^[\\s]*#pragma[\\s]*endregion.*$",
+      "foldStartRegex": "^[\\s]*#pragma[\\s]*region[\\s]*(.*)[\\s]*$"
+    },
+},
+```
+`compile-commands-dir` should point to the build directory as CMake drops the `compile_commands.json` right there.
+
+
+if you want to use `#pragma region`, install [#region folding](https://marketplace.visualstudio.com/items?itemName=maptz.regionfolder) extension, because clangd does not support [pragma blocks](https://github.com/clangd/clangd/issues/1623) and add this to your configuration:
+```json
+"maptz.regionfolder": {
+    "[cpp]": {
+      "foldEndRegex": "^[\\s]*#pragma[\\s]*endregion.*$",
+      "foldStartRegex": "^[\\s]*#pragma[\\s]*region[\\s]*(.*)[\\s]*$"
+    }}
+```
+if you have any errors upon Debug on CMake extension, also add this
+```json
+  "cmake.debugConfig": {
+    "MIMode": "gdb",
+    "miDebuggerPath": "/usr/bin/gdb"
+  },
+```
 ## why
 
 ### why do you have `time.h` at include folder

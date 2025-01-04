@@ -10,7 +10,8 @@ def generate_header(input_file: str, var_name: str):
 #define {var_name.upper()}_H
 
 namespace Resources {{
-    const unsigned char {var_name}[] = {{
+    namespace {var_name}{{
+        const unsigned char hex[] = {{
 """
 
     # Convert binary data to hex format
@@ -22,7 +23,7 @@ namespace Resources {{
 
     # Add data and size variable
     header += f"        {formatted_data}\n    }};\n\n"
-    header += f"    const unsigned int {var_name}_size = {len(content)};\n}}\n\n"
+    header += f"    const unsigned int size = {len(content)};\n}}}}\n\n"
     header += "#endif\n"
 
     return header

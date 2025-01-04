@@ -7,7 +7,9 @@ cmake_minimum_required(VERSION 3.14...3.31)
 # Define the project name as "Conan"
 project(Conan)
 
+
 # windows and arm doesnt work, dont try right now lmao.
+# or instead of using this, you can select the proper kit from CMake Extension in vsc
 set(TARGET_PLATFORM "native" CACHE STRING "Target platform (native, arm64-linux, amd64-windows)")
 if(TARGET_PLATFORM STREQUAL "arm64-linux")
     set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/toolchain-arm64-linux.cmake)
@@ -26,8 +28,9 @@ set(CMAKE_AUTOMOC ON)    # Enable Qt's Meta-Object Compiler
 set(CMAKE_AUTORCC ON)    # Enable automatic compilation of Qt's resource files
 set(CMAKE_AUTOUIC ON)    # Enable automatic compilation of Qt's UI files
 
-# Find required external packages
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Test)  # Qt6 components
+# Find required external packages 
+find_package(Crow REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Test WebEngineWidgets WebEngineCore)  # Qt6 components
 find_package(spdlog REQUIRED)    # Logging library
 find_package(glslang REQUIRED)   # GLSL compiler
 find_package(Protobuf REQUIRED)  # Protocol Buffers
@@ -38,10 +41,11 @@ find_package(X11 QUIET)         # X11 window system (optional)
 # Use pkg-config to find additional libraries
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CHROMAPRINT REQUIRED libchromaprint)  # Audio fingerprinting library
-pkg_check_modules(VDPAU QUIET vdpau)                    # Video acceleration (optional)
+pkg_check_modules(VDPAU QUIET vdpau)    # Video acceleration (optional)
 
 file(GLOB SOURCES 
 ${CMAKE_SOURCE_DIR}/src/main.cpp 
+${CMAKE_SOURCE_DIR}/src/server.cpp 
 ${CMAKE_SOURCE_DIR}/src/include/assets/*.cpp 
 ${CMAKE_SOURCE_DIR}/src/layouts/*.cpp
 )
@@ -71,13 +75,15 @@ set(GLSLANG_VENDOR_DIR  ${CMAKE_SOURCE_DIR}/src/vendor/glslang)
 # Configure include directories for the target
 # PRIVATE means these includes are only used internally by this target
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/layouts
+    ${CMAKE_SOURCE_DIR}/src/include
+    ${CMAKE_SOURCE_DIR}/src/include/assets
+    ${Crow_INCLUDE_DIR}
     ${X11_INCLUDE_DIR}                    # X11 headers
     ${VDPAU_INCLUDE_DIRS}                 # VDPAU headers
     /usr/local/include/essentia          # Audio analysis library
     samplerate                           # Audio sample rate conversion
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/layouts
-    ${CMAKE_SOURCE_DIR}/src/include      # Project headers
     ${Protobuf_INCLUDE_DIRS}            # Protocol Buffers headers
     # GLSL and SPIR-V related headers
     ${GLSLANG_VENDOR_DIR}/SPIRV
@@ -123,6 +129,7 @@ set(LIBAVDEVICE_LIBRARY     ${FFMPEG_VENDOR_DIR}/libavdevice/libavdevice.a)
 # Link all required libraries to the target
 # WARNING: FFmpeg libraries must be linked in this specific order due to dependencies
 target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${Crow_LIBRARIES}
     /usr/local/lib/libessentia.a        # Audio analysis library
     samplerate                          # Sample rate conversion
     # FFmpeg libraries (order matters!)
@@ -138,9 +145,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     va-drm
     ${X11_LIBRARIES}
     ${VDPAU_LIBRARIES}
-    # Machine learning libraries
-    tensorflow
-    tensorflow_framework
     # Various other dependencies
     glslang
     ${Protobuf_LIBRARIES}
@@ -156,8 +160,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Widgets
     Qt6::Test
+    Qt6::WebEngineWidgets
+    Qt6::WebEngineCore
     # Logging and formatting
     spdlog::spdlog
     fmt
     ${CHROMAPRINT_LIBRARIES}           # Audio fingerprinting
 )
+
+add_compile_definitions(QT_NO_KEYWORDS)

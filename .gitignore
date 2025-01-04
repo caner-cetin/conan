@@ -6,3 +6,5 @@ venv
 .env
 build
 src/vendor
+src/include/crow
+.cache

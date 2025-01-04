@@ -4,6 +4,13 @@ smol music recommendation engine based on local library folders.
 
 ![alt text](image.png)
 *ui is not final*
+
+## note
+
+Python version is impossible to run under Windows and requires hectic amount of space for virtual environment on Linux and Mac. There is true black magic going on at the [C++ branch](https://github.com/caner-cetin/conan/tree/cpp ) for rewriting in C++ and creating static linked binaries for AMD64 Windows&Linux and ARM64 OSX systems. `main` branch contains what this application is in its core, but algorithm is not good, many features are still missing, and code itself is not that portable.
+
+if you want to take a look at the Python app:
+
 ## run
 only tested for windows and WSL.
 
@@ -50,28 +57,3 @@ $ ls /mnt/g/music/Pallbearer/2017\ -\ Heartless/
 ```
 
 not tested in linux and macos. 
-
-
-## todo
-
-- queue / play for similar tracks
-
-- marquee effect for long labels in lists
-
-with long track titles such as 
-```
-"GOVERNMENT CAME" (9980.0kHz 3617.1kHz 4521.0 kHz) / Cliffs Gaze / cliffs' gaze at empty waters' rise / ASHES TO SEA or NEARER TO THEE
-```
-labels wraps without preserving the value before being wrapped:
-
-![alt text](./static/t1.png)
-
-and search is broken afterwards:
-
-![alt text](./static/t2.png)
-
-where it works fine if searched by wrapped text:
-
-![alt text](./static/t3.png)
-
-- ???

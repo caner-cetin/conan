@@ -6,7 +6,7 @@
 #include <assets/favicon.h>
 #include <assets/stylesheet.h>
 #include <assets/util.h>
-#include <server.h>
+#include <workers/server.h>
 
 #include <layouts/f2k.h>
 #include <layouts/progress_bar.h>

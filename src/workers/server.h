@@ -1,3 +1,4 @@
+#include "crow/app.h"
 #include "crow/websocket.h"
 #include "f2k_types.h"
 #include <QMutex>
@@ -15,15 +16,17 @@ public:
 
 public Q_SLOTS:
   void destroy() {
-    QMutexLocker locker(&mutex);
-    quit();
+    server.stop();
+    requestInterruption();
     wait();
+    deleteLater();
   }
   // void stream_playback_state(bool changed, PlaybackState state);
 
 private:
   QObject *parent;
   QMutex mutex;
+  crow::SimpleApp server;
   crow::websocket::connection *client{nullptr};
   void stream_swap(const std::string &swap_for, const std::string &replacement);
 };

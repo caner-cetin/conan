@@ -21,7 +21,9 @@ smol music recommendation engine based on local library folders.
 - [why](#why)
   - [why do you have `time.h` at include folder](#why-do-you-have-timeh-at-include-folder)
   - [why did you create this project](#why-did-you-create-this-project)
-- [todo](#todo)
+- [problems, todos, and many more rants](#problems-todos-and-many-more-rants)
+  - [cannot link tensorflow and tensorflow framework](#cannot-link-tensorflow-and-tensorflow-framework)
+  - [windows and arm toolchains (mingw, etc) does not work.](#windows-and-arm-toolchains-mingw-etc-does-not-work)
 
 ## features
 ..
@@ -212,31 +214,68 @@ if you have any errors upon Debug on CMake extension, also add this
 
 ffmpeg's libavcodec library has `time.h` header that clashes with system default `time.h` and if you dont include the system `time.h` before including the libavcodec headers, everything goes boom. 
 
+
 ### why did you create this project
 
-i have no idea but i will get back to you with a reason soon.
+This project is born with the jealousy of infinite music queueing algorithm in Apple Music's stations, I will write a detailed "why" at the end of the project, but at its core, I am just in awe of how good Apple Music stations works, and how I can listen hours of music due to how good all songs blend in with each other. Trying to replicate with small library of mine.
 
 
-## todo
+## problems, todos, and many more rants
 
-- queue / play for similar tracks
+issues never ends...
 
-- marquee effect for long labels in lists
+### cannot link tensorflow and tensorflow framework
 
-with long track titles such as 
+```bash 
+➜  conan git:(cpp) ✗ lldb-19 build/Conan
+(lldb) target create "build/Conan"
+Current executable set to '/home/cansu/Git/conan/build/Conan' (x86_64).
+(lldb) run
+Process 69396 launched: '/home/cansu/Git/conan/build/Conan' (x86_64)
+Failed to create wl_display (No such file or directory) # irrelevant
+qt.qpa.plugin: Could not load the Qt platform plugin "wayland" in "" even though it was found. # irrelevant
+Process 69396 stopped
+* thread #1, name = 'Conan', stop reason = signal SIGSEGV: address not mapped to object (fault address: 0x8)
+    frame #0: 0x00007fffbdeb1ff1 libtensorflow_framework.so.2`llvm::raw_svector_ostream::write_impl(char const*, unsigned long) + 17
+libtensorflow_framework.so.2`llvm::raw_svector_ostream::write_impl:
+->  0x7fffbdeb1ff1 <+17>: movq   0x8(%r14), %rdi
+    0x7fffbdeb1ff5 <+21>: addq   %rdi, %rdx
+    0x7fffbdeb1ff8 <+24>: cmpq   %rdx, 0x10(%r14)
+    0x7fffbdeb1ffc <+28>: jae    0x7fffbdeb201c ; <+60>
 ```
-"GOVERNMENT CAME" (9980.0kHz 3617.1kHz 4521.0 kHz) / Cliffs Gaze / cliffs' gaze at empty waters' rise / ASHES TO SEA or NEARER TO THEE
+
+which, both libraries work fine with a sample test code
+```c
+#include <stdio.h>
+#include <tensorflow/c/c_api.h>
+
+int main() {
+  printf("Hello from TensorFlow C library version %s\n", TF_Version());
+  return 0;
+}
 ```
-labels wraps without preserving the value before being wrapped:
 
-![alt text](./static/t1.png)
+```bash
+gcc hello_tf.c -ltensorflow -o hello_tf
+./hello_tf
+Hello from TensorFlow C library version 2.18.0
+```
 
-and search is broken afterwards:
+this will be hell to debug, but we have installed and linked all the libraries we need, so if I fix TF, there will be no compile issues left with CMake.
 
-![alt text](./static/t2.png)
+### windows and arm toolchains (mingw, etc) does not work. 
 
-where it works fine if searched by wrapped text:
+need to rebuild the incompatible libraries in both windows and mac.  for example, when configured with `GCC 13-win32 x86_64-w64-mingw32` kit:
 
-![alt text](./static/t3.png)
+```
+[cmake] CMake Error at /usr/share/cmake-3.28/Modules/FindPackageHandleStandardArgs.cmake:230 (message):
+[cmake]   Could NOT find ZLIB (missing: ZLIB_LIBRARY) (found version "1.3")
+[cmake] Call Stack (most recent call first):
+[cmake]   /usr/share/cmake-3.28/Modules/FindPackageHandleStandardArgs.cmake:600 (_FPHSA_FAILURE_MESSAGE)
+[cmake]   /usr/share/cmake-3.28/Modules/FindZLIB.cmake:199 (FIND_PACKAGE_HANDLE_STANDARD_ARGS)
+[cmake]   /usr/share/cmake-3.28/Modules/CMakeFindDependencyMacro.cmake:76 (find_package)
+[cmake]   /usr/lib/cmake/Crow/CrowConfig.cmake:42 (find_dependency)
+[cmake]   CMakeLists.txt:34 (find_package)
+```
 
-- ???
+so we cannot even configure the CMake with other kits right now. both `Clang 19.1.6 x86_64-pc-linux-gnu` and `GCC 13.3.0 x86_64-pc-linux-gnu` works for Linux, I will sort out something for both Win and OSX after all the compiling pain (see above for tensorflow disaster) for Linux ends.

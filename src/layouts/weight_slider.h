@@ -1,5 +1,5 @@
-
-
+#ifndef WEIGHT_SLIDER_H
+#define WEIGHT_SLIDER_H
 #include <QGroupBox>
 #include <QSlider>
 #include <qboxlayout.h>
@@ -41,3 +41,4 @@ private:
 
   QGridLayout *layout;
 };
+#endif

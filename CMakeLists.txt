@@ -44,12 +44,14 @@ find_package(X11 QUIET)         # X11 window system (optional)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CHROMAPRINT REQUIRED libchromaprint)  # Audio fingerprinting library
 pkg_check_modules(VDPAU QUIET vdpau)    # Video acceleration (optional)
+pkg_check_modules(TAGLIB REQUIRED taglib)
 
 file(GLOB SOURCES 
 ${CMAKE_SOURCE_DIR}/src/main.cpp 
 ${CMAKE_SOURCE_DIR}/src/server.cpp 
 ${CMAKE_SOURCE_DIR}/src/include/assets/*.cpp 
 ${CMAKE_SOURCE_DIR}/src/layouts/*.cpp
+${CMAKE_SOURCE_DIR}/src/workers/*.cpp
 )
 # Create the executable target from the main source file
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -82,8 +84,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/include
     ${CMAKE_SOURCE_DIR}/src/include/assets
     ${Crow_INCLUDE_DIR}
-    ${X11_INCLUDE_DIR}                    # X11 headers
+    ${X11_INCLUDE_DIRS}                    # X11 headers
     ${VDPAU_INCLUDE_DIRS}                 # VDPAU headers
+    ${TAGLIB_INCLUDE_DIRS}
     /usr/local/include/essentia          # Audio analysis library
     samplerate                           # Audio sample rate conversion
     ${Protobuf_INCLUDE_DIRS}            # Protocol Buffers headers
@@ -114,10 +117,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${FFMPEG_VENDOR_DIR}/libswscale
 )
 
-# Add additional library search directories
-target_link_directories(${PROJECT_NAME} PRIVATE
-    /usr/local/tensorflow/lib
-)
 
 # Define paths to FFmpeg static libraries
 set(LIBAVUTIL_LIBRARY       ${FFMPEG_VENDOR_DIR}/libavutil/libavutil.a)
@@ -127,10 +126,19 @@ set(LIBAVFILTER_LIBRARY     ${FFMPEG_VENDOR_DIR}/libavfilter/libavfilter.a)
 set(LIBSWRESAMPLE_LIBRARY   ${FFMPEG_VENDOR_DIR}/libswresample/libswresample.a)
 set(LIBSWSCALE_LIBRARY      ${FFMPEG_VENDOR_DIR}/libswscale/libswscale.a)
 set(LIBAVDEVICE_LIBRARY     ${FFMPEG_VENDOR_DIR}/libavdevice/libavdevice.a)
+set(TF_LIB_DIR              "/usr/local/lib")
 
 # Link all required libraries to the target
 # WARNING: FFmpeg libraries must be linked in this specific order due to dependencies
 target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${TF_LIB_DIR}/libtensorflow.so.2
+    # ${TF_LIB_DIR}/libtensorflow_framework.so.2
+
+    dl
+    pthread
+    m
+    rt
+
     ${Crow_LIBRARIES}
     /usr/local/lib/libessentia.a        # Audio analysis library
     samplerate                          # Sample rate conversion
@@ -154,7 +162,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     fftw3                              # Fast Fourier Transform
     fftw3f
     yaml                               # YAML parser
-    va                                 # Video acceleration
     z                                  # Compression
     bz2                                # Compression
     lzma                               # Compression
@@ -169,6 +176,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     spdlog::spdlog
     fmt
     ${CHROMAPRINT_LIBRARIES}           # Audio fingerprinting
+    ${TAGLIB_LIBRARIES}
 )
 
 add_compile_definitions(QT_NO_KEYWORDS)

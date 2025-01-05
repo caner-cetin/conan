@@ -15,7 +15,6 @@ HttpWorker::HttpWorker(QObject *parent) {
   }
 }
 void HttpWorker::run() {
-  crow::SimpleApp server;
   CROW_WEBSOCKET_ROUTE(server, "/ws")
       .onopen([&](crow::websocket::connection &conn) {
         QMutexLocker locker(&mutex);
@@ -33,7 +32,8 @@ void HttpWorker::run() {
         response.write(hex_to_string(Resources::PlayerInfoTemplate::hex));
         return response;
       });
-  server.port(31311).multithreaded().run();
+  // do we really need multithreads?
+  server.port(31311).run();
 }
 void HttpWorker::stream_swap(const std::string &swap_for,
                              const std::string &replacement) {}

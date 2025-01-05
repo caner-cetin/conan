@@ -1,3 +1,5 @@
+#ifndef F2K_TYPES_H
+#define F2K_TYPES_H
 #include "string"
 #include "vector"
 
@@ -44,3 +46,4 @@ struct Player {
 };
 }; // namespace PlayerState
 } // namespace BeefWeb
+#endif

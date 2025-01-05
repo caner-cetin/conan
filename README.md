@@ -1,7 +1,8 @@
 ## conan
 smol music recommendation engine based on local library folders.
 
-![alt text](image.png)
+![alt text](./static/ui.png)
+
 *ui is not final*
 
 - [conan](#conan)

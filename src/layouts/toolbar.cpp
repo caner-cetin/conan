@@ -6,7 +6,6 @@
 #include <qpushbutton.h>
 
 ToolbarLayout::ToolbarLayout(QObject *parent) {
-  analyzer = MusicAnalyzer();
   connect(select_directory, &QPushButton::clicked, this,
           &ToolbarLayout::on_select_directory);
   connect(load_analysis, &QPushButton::clicked, this,
@@ -34,7 +33,7 @@ void ToolbarLayout::on_start_analysis(bool checked) {
   if (music_directory == "") {
     return;
   }
-  analyzer.analyze_directory(music_directory);
+  // analyzer.analyze_directory(music_directory);
 }
 
 void ToolbarLayout::on_stop_analysis(bool checked) {

@@ -1,5 +1,7 @@
 
 
+#include <QListWidget>
+#include <gtk/gtk.h>
 #include <qabstractbutton.h>
 #include <qboxlayout.h>
 #include <qbuffer.h>
@@ -11,10 +13,9 @@
 #include <qpushbutton.h>
 #include <qtextedit.h>
 #include <qtmetamacros.h>
-#include <qwebengineview.h>
 #include <qwidget.h>
 #include <qwindowdefs.h>
-#include <QListWidget>
+#include <webkit2/webkit2.h>
 
 class PlaybackControlsLayout : public QHBoxLayout {
 
@@ -38,14 +39,20 @@ private:
   QBuffer *placeholder_buffer;
 };
 
-class TrackPlayerInfo : public QWebEngineView {
+class TrackPlayerInfo : public QWidget {
 public:
   TrackPlayerInfo(QWidget *parent = nullptr);
+
+private:
+  WebKitWebView *webView;
 };
 
-class TrackAnalysisInfo : public QWebEngineView {
+class TrackAnalysisInfo : public QWidget {
 public:
   TrackAnalysisInfo(QWidget *parent = nullptr);
+
+private:
+  WebKitWebView *webView;
 };
 
 class TrackList : public QListWidget {

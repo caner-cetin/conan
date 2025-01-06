@@ -21,7 +21,7 @@ private:
   QPushButton *start_analysis = new QPushButton("Start Analysis");
   QPushButton *stop_analysis = new QPushButton("Stop Analysis");
 
-  MusicAnalyzer analyzer;
+  // MusicAnalyzer analyzer;
 
 public Q_SLOTS:
   void on_select_directory(bool checked = false);

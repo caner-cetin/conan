@@ -17,6 +17,10 @@ elseif(TARGET_PLATFORM STREQUAL "amd64-windows")
     set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/toolchain-amd64-windows.cmake)
 endif()
 
+if(CMAKE_BUILD_TYPE EQUAL Debug)
+    set(QT_DEBUG_PLUGINS 1)
+    set(TF_CPP_MIN_LOG_LEVEL 0)
+endif()
 # Configure C++ standard settings
 set(CMAKE_CXX_STANDARD 17)              # Use C++17 standard
 set(CMAKE_CXX_STANDARD_REQUIRED ON)     # Require C++17 support (don't fall back to previous versions)
@@ -32,7 +36,7 @@ set(CMAKE_AUTOUIC ON)    # Enable automatic compilation of Qt's UI files
 
 # Find required external packages 
 find_package(Crow REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Test WebEngineWidgets WebEngineCore Svg)  # Qt6 components
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Svg)  # Qt6 components
 find_package(spdlog REQUIRED)    # Logging library
 find_package(glslang REQUIRED)   # GLSL compiler
 find_package(Protobuf REQUIRED)  # Protocol Buffers
@@ -45,6 +49,10 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(CHROMAPRINT REQUIRED libchromaprint)  # Audio fingerprinting library
 pkg_check_modules(VDPAU QUIET vdpau)    # Video acceleration (optional)
 pkg_check_modules(TAGLIB REQUIRED taglib)
+pkg_check_modules(GTK REQUIRED gtk+-3.0)
+pkg_check_modules(WEBKIT REQUIRED webkit2gtk-4.1)
+
+
 
 file(GLOB SOURCES 
 ${CMAKE_SOURCE_DIR}/src/main.cpp 
@@ -53,6 +61,10 @@ ${CMAKE_SOURCE_DIR}/src/include/assets/*.cpp
 ${CMAKE_SOURCE_DIR}/src/layouts/*.cpp
 ${CMAKE_SOURCE_DIR}/src/workers/*.cpp
 )
+
+link_directories(${GTK_LIBRARY_DIRS})
+link_directories(${WEBKIT_LIBRARY_DIRS})
+link_directories(${X11_LIBRARY_DIRS})
 # Create the executable target from the main source file
 add_executable(${PROJECT_NAME} ${SOURCES})
 
@@ -83,10 +95,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/layouts
     ${CMAKE_SOURCE_DIR}/src/include
     ${CMAKE_SOURCE_DIR}/src/include/assets
-    ${Crow_INCLUDE_DIR}
+    ${Crow_INCLUDE_DIRS}
     ${X11_INCLUDE_DIRS}                    # X11 headers
     ${VDPAU_INCLUDE_DIRS}                 # VDPAU headers
     ${TAGLIB_INCLUDE_DIRS}
+    ${WEBKIT_INCLUDE_DIRS}
+    ${GTK_INCLUDE_DIRS}
     /usr/local/include/essentia          # Audio analysis library
     samplerate                           # Audio sample rate conversion
     ${Protobuf_INCLUDE_DIRS}            # Protocol Buffers headers
@@ -132,7 +146,7 @@ set(TF_LIB_DIR              "/usr/local/lib")
 # WARNING: FFmpeg libraries must be linked in this specific order due to dependencies
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ${TF_LIB_DIR}/libtensorflow.so.2
-    # ${TF_LIB_DIR}/libtensorflow_framework.so.2
+    ${TF_LIB_DIR}/libtensorflow_framework.so.2
 
     dl
     pthread
@@ -168,15 +182,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     # Qt libraries
     Qt6::Core
     Qt6::Widgets
-    Qt6::Test
-    Qt6::WebEngineWidgets
-    Qt6::WebEngineCore
     Qt6::Svg
     # Logging and formatting
     spdlog::spdlog
     fmt
     ${CHROMAPRINT_LIBRARIES}           # Audio fingerprinting
     ${TAGLIB_LIBRARIES}
+    ${WEBKIT_LIBRARIES}
+    ${GTK_LIBRARIES}
 )
 
 add_compile_definitions(QT_NO_KEYWORDS)

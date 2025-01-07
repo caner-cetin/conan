@@ -26,8 +26,6 @@ set(CMAKE_CXX_STANDARD 17)              # Use C++17 standard
 set(CMAKE_CXX_STANDARD_REQUIRED ON)     # Require C++17 support (don't fall back to previous versions)
 set(CMAKE_CXX_EXTENSIONS ON)            # Allow compiler-specific extensions
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # Generate compile_commands.json for tooling
-set(GALLIUM_DRIVER d3d12)               # https://askubuntu.com/questions/1530856/wsl2-mesa-error-zink-failed-to-choose-pdev-after-glxinfo-b
-set(QT_QPA_PLATFORM offscreen)          # https://github.com/NVlabs/instant-ngp/discussions/300
 
 # Configure Qt-specific build settings
 set(CMAKE_AUTOMOC ON)    # Enable Qt's Meta-Object Compiler
@@ -35,6 +33,14 @@ set(CMAKE_AUTORCC ON)    # Enable automatic compilation of Qt's resource files
 set(CMAKE_AUTOUIC ON)    # Enable automatic compilation of Qt's UI files
 
 # Find required external packages 
+set(CMAKE_PREFIX_PATH /usr/local/Qt-6.8.1/lib/cmake/Qt6)
+set(Qt6_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6)
+set(Qt6GuiTools_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6GuiTools)
+set(Qt6Widgets_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6Widgets)
+set(Qt6Core_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6Core)
+set(Qt6Svg_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6Svg)
+
+
 find_package(Crow REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Svg)  # Qt6 components
 find_package(spdlog REQUIRED)    # Logging library
@@ -42,16 +48,14 @@ find_package(glslang REQUIRED)   # GLSL compiler
 find_package(Protobuf REQUIRED)  # Protocol Buffers
 find_package(PkgConfig REQUIRED) # Package configuration tool
 find_package(fmt REQUIRED)       # String formatting library
-find_package(X11 QUIET)         # X11 window system (optional)
 
 # Use pkg-config to find additional libraries
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CHROMAPRINT REQUIRED libchromaprint)  # Audio fingerprinting library
 pkg_check_modules(VDPAU QUIET vdpau)    # Video acceleration (optional)
-pkg_check_modules(TAGLIB REQUIRED taglib)
-pkg_check_modules(GTK REQUIRED gtk+-3.0)
-pkg_check_modules(WEBKIT REQUIRED webkit2gtk-4.1)
-
+pkg_check_modules(GTK3 REQUIRED IMPORTED_TARGET gtk+-3.0)  # Explicitly get GTK3
+pkg_check_modules(WEBKIT REQUIRED IMPORTED_TARGET webkit2gtk-4.1)  # WebKit with GTK3
+pkg_check_modules(X11 QUIET IMPORTED_TARGET x11)
 
 
 file(GLOB SOURCES 
@@ -99,8 +103,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${X11_INCLUDE_DIRS}                    # X11 headers
     ${VDPAU_INCLUDE_DIRS}                 # VDPAU headers
     ${TAGLIB_INCLUDE_DIRS}
-    ${WEBKIT_INCLUDE_DIRS}
-    ${GTK_INCLUDE_DIRS}
+    /usr/local/include/webkitgtk-4.1
+    ${GTK3_INCLUDE_DIRS}
     /usr/local/include/essentia          # Audio analysis library
     samplerate                           # Audio sample rate conversion
     ${Protobuf_INCLUDE_DIRS}            # Protocol Buffers headers
@@ -172,7 +176,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     # Various other dependencies
     glslang
     ${Protobuf_LIBRARIES}
-    tag                                 # Audio metadata library
+    tag                                # Audio metadata library
     fftw3                              # Fast Fourier Transform
     fftw3f
     yaml                               # YAML parser
@@ -188,8 +192,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     fmt
     ${CHROMAPRINT_LIBRARIES}           # Audio fingerprinting
     ${TAGLIB_LIBRARIES}
-    ${WEBKIT_LIBRARIES}
-    ${GTK_LIBRARIES}
+    PkgConfig::GTK3
+    PkgConfig::WEBKIT
+    PkgConfig::X11
 )
 
 add_compile_definitions(QT_NO_KEYWORDS)

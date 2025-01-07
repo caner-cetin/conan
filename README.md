@@ -6,35 +6,31 @@ smol music recommendation engine based on local library folders.
 *ui is not final*
 
 - [conan](#conan)
+- [notes](#notes)
 - [features](#features)
 - [download](#download)
 - [compile yourself](#compile-yourself)
   - [use clang](#use-clang)
-  - [libs](#libs)
-  - [qt](#qt)
-  - [ffmpeg](#ffmpeg)
-  - [essentia](#essentia)
-  - [glslang](#glslang)
-  - [gtest](#gtest)
-  - [tensorflow](#tensorflow)
-  - [crow](#crow)
+  - [dependencies](#dependencies)
   - [things may help you in development](#things-may-help-you-in-development)
-    - [generate binary headers for embedding assets](#generate-binary-headers-for-embedding-assets)
-    - [vscode setup](#vscode-setup)
 - [why](#why)
   - [why do you have `time.h` at include folder](#why-do-you-have-timeh-at-include-folder)
   - [why dont you use qtwebengine](#why-dont-you-use-qtwebengine)
   - [why did you create this project](#why-did-you-create-this-project)
 - [problems, todos, and many more rants](#problems-todos-and-many-more-rants)
+  - [player info](#player-info)
   - [windows and arm toolchains (mingw, etc) does not work.](#windows-and-arm-toolchains-mingw-etc-does-not-work)
 - [closing thoughts](#closing-thoughts)
 
+## notes
+this branch still requires a lot of work thanks to being in C++ space, check the main branch if you want to know what this app is in its core.
 ## features
 ...
 ## download
 ...
 ## compile yourself
 trust me, this is not worth your time. most depndencies are compiled from source, and it will take so much time from you, i am talking about several hours. if you follow these steps, and for uncertain reasons you decide to compile this application, you are my best friend from now on. 
+
 ### use clang
 export the folloving envs
 ```bash
@@ -42,7 +38,11 @@ export CC=/usr/bin/clang-19
 export CXX=/usr/bin/clang++-19
 ```
 until we are done
-### libs
+### dependencies
+<details>
+
+<summary>libs</summary>
+
 ```bash
 sudo add-apt-repository ppa:oibaf/graphics-drivers
 sudo apt-get update
@@ -71,14 +71,18 @@ sudo apt-get install \
     libjemalloc-dev
     uwsgi \
     zlib1g-dev \
-    qt6-base-dev \
-    qt6-base-dev-tools \
-    qt6-svg-dev
-    sudo apt update
     libgtk-3-dev \
-    libwebkit2gtk-4.1-dev
+    libwebkit2gtk-4.1-dev \
+    ruby-full \
+    ccache
 ```
-### qt
+
+</details>
+
+<details>
+
+<summary>qt</summary>
+
 
 do not use package manager / pre-built libraries.
 
@@ -152,6 +156,9 @@ sudo apt install \
     libinput-dev \
     libclang-19-dev \
     llvm-19-dev \
+    libseccomp-dev \
+    libseccomp2 \
+    gettext
 ```
 ```bash
 wget https://download.qt.io/official_releases/qt/6.8/6.8.1/single/qt-everywhere-src-6.8.1.tar.xz -C ~/Downloads/qt-everywhere-src-6.8.1.tar.xz
@@ -159,7 +166,7 @@ cd /tmp
 tar xf ~/Downloads/qt-everywhere-src-6.8.1.tar.xz
 mkdir -p ~/dev/qt-build
 cd ~/dev/qt-build
-/tmp/qt-everywhere-src-6.8.1/qtbase/configure -top-level  -skip qtquick3dphysics -skip qtremoteobjects -skip qtvirtualkeyboard -skip qtpositioning -skip qtspeech -skip qt3d -skip qtquick3d -skip qtlanguageserver -skip qtdatavis3d -skip qtlocation -skip qtgrpc -skip qtcoap -skip qtopcua -skip qtmqtt -skip qtsensors -skip qtgraphs -skip qtconnectivity -skip qtlottie -skip qtnetworkauth -skip qtdoc -skip qtscxml -skip qtwebchannel -skip qtwebengine -skip qtwebview -skip qthttpserver -skip qtwebsockets -skip qtcharts -skip qtactiveqt  -skip-tests qtbase,qt5compat,qtimageformats,qtshadertools,qtmultimedia,qtserialport,qtserialbus,qtsvg,qttools,qttranslations,qtwayland -skip-examples qtbase,qt5compat,qtimageformats,qtshadertools,qtmultimedia,qtserialport,qtserialbus,qtsvg,qttools,qttranslations,qtwayland -gui -widgets
+/tmp/qt-everywhere-src-6.8.1/qtbase/configure -top-level -debug-and-release -skip qtmultimedia -skip qtquick3dphysics -skip qtremoteobjects -skip qtvirtualkeyboard -skip qtpositioning -skip qtspeech -skip qt3d -skip qtquick3d -skip qtlanguageserver -skip qtdatavis3d -skip qtlocation -skip qtgrpc -skip qtcoap -skip qtopcua -skip qtmqtt -skip qtsensors -skip qtgraphs -skip qtconnectivity -skip qtlottie -skip qtnetworkauth -skip qtdoc -skip qtscxml -skip qtwebchannel -skip qtwebengine -skip qtwebview -skip qthttpserver -skip qtwebsockets -skip qtcharts -skip qtactiveqt  -skip-tests qtbase,qt5compat,qtimageformats,qtshadertools,qtmultimedia,qtserialport,qtserialbus,qtsvg,qttools,qttranslations,qtwayland -skip-examples qtbase,qt5compat,qtimageformats,qtshadertools,qtmultimedia,qtserialport,qtserialbus,qtsvg,qttools,qttranslations,qtwayland -gui -widgets
 cmake --build . --parallel
 sudo cmake --install .
 ```
@@ -178,7 +185,12 @@ In .login (if your shell is csh or tcsh), add the following line:
 setenv PATH /usr/local/Qt-6.8.1/bin:$PATH
 ```
 
-### ffmpeg
+</details>
+
+<details>
+
+<summary>ffmpeg</summary>
+
 this is gonna override your default ffmpeg installation, but you can bump to latest version after compiling essentia with your package manager like `apt-get install ffmpeg`. you dont need the compiled binaries, we only need libraries, and we include them from `vendor/ffmpeg` folder. after `sudo make install` and compiling essentia, you can just do `apt-get install ffmpeg` then override everything.
 
 if you dont want to install 4.4, pick a version [lower than 5](https://github.com/MTG/essentia/issues/1248), and pick a version that released before [September 15, 2021](https://patchwork.ffmpeg.org/project/ffmpeg/patch/AM7PR03MB6660E1F8A57B76DF6578148B8FDB9@AM7PR03MB6660.eurprd03.prod.outlook.com/) [from here](https://ffmpeg.org/releases)
@@ -200,7 +212,13 @@ sudo make
 sudo make install
 sudo rm libavdevice/decklink*
 ```
-### essentia
+
+</details>
+
+<details>
+
+<summary>essentia</summary>
+
 ```bash
 git clone https://github.com/MTG/essentia.git
 cd essentia
@@ -208,7 +226,13 @@ python3 waf configure --build-static --with-tensorflow
 python3 waf
 sudo python3 waf install
 ```
-### glslang
+
+</details>
+
+<details>
+
+<summary>glslang</summary>
+
 ```bash
 git clone https://github.com/KhronosGroup/glslang.git
 cd glslang
@@ -219,21 +243,42 @@ make -j4 install
 sudo ln -s /usr/local/bin/glslang /usr/bin/glslang
 sudo ln -s /usr/local/bin/spirv-remap /usr/bin/spirv-remap
 ```
-### gtest
+
+</details>
+
+<details>
+
+<summary>gtk & webkitgtk</summary>
+
+same reason as qt. both built with GCC and cannot be used with CLang built libraries such as TensorFlow.
+
+gtk 3
 ```bash
-sudo apt-get install -y libgtest-dev cmake
-mkdir -p $HOME/build
-cd $HOME/build
-sudo cmake /usr/src/googletest/googletest
-sudo make
-sudo cp lib/libgtest* /usr/lib/
-cd ..
-sudo rm -rf build
-sudo mkdir /usr/local/lib/googletest
-sudo ln -s /usr/lib/libgtest.a /usr/local/lib/googletest/libgtest.a
-sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/googletest/libgtest_main.a
+wget https://download.gnome.org/sources/gtk+/3.24/gtk+-3.24.34.tar.xz
+tar -xf gtk+-3.24.34.tar.xz
+cd gtk+-3.24.34
+mkdir build
+cd build
+meson --prefix=/usr --buildtype=release -Dintrospection=false -Ddemos=false -Dexamples=false -Dtests=false ..
+ninja
+sudo ninja install
 ```
-### tensorflow
+webkitgtk
+```bash
+wget https://webkitgtk.org/releases/webkitgtk-2.46.5.tar.xz
+tar -xf webkitgtk-2.46.5.tar.xz
+cd webkitgtk-2.46.5
+mkdir build
+cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DPORT=GTK -DENABLE_INTROSPECTION=OFF -DENABLE_GTKDOC=OFF -DENABLE_MINIBROWSER=OFF -DENABLE_GAMEPAD=OFF -DENABLE_WAYLAND_TARGET=OFF -DUSE_AVIF=OFF -DENABLE_JOURNALD_LOG=OFF -DUSE_LCMS=OFF -DUSE_GSTREAMER_TRANSCODER=OFF -DENABLE_TOUCH_EVENTS=OFF -DUSE_GTK4=OFF -DUSE_JPEGXL=OFF -S . -B build
+cd build
+ninja
+sudo ninja install
+```
+</details>
+
+<details>
+
+<summary>tensorflow</summary>
 
 ```bash
 # get appropiate filename here https://www.tensorflow.org/install/lang_c#download_and_extract
@@ -242,7 +287,11 @@ wget -q --no-check-certificate https://storage.googleapis.com/tensorflow/version
 sudo tar -C /usr/local -xzf ${FILENAME}
 ```
 
-### crow
+</details>
+
+<details>
+
+<summary>crow</summary>
 
 ```bash
 wget https://github.com/CrowCpp/Crow/releases/download/v1.2.0/Crow-1.2.0-Linux.deb 
@@ -251,11 +300,15 @@ cp -r /usr/include/crow src/include
 sudo rm -rf /usr/include/crow
 ```
 
+</details>
+
 ### things may help you in development
 
 everything is pretty straightforward, factory default QT and other libraries. i will add "watch out for this" if i have any of them:
 
-#### generate binary headers for embedding assets
+<details>
+
+<summary>generate binary headers for embedding assets</summary>
 
 ```bash
 assets/asset_converter.py assets/no_cover_art.gif NoCoverArtGif > src/include/assets/no_cover_art.h
@@ -276,7 +329,11 @@ QLabel *label = new QLabel();
 label->setMovie(movie);
 ```
 
-#### vscode setup
+</details>
+
+<details>
+
+<summary>vscode setup</summary>
 
 c/c++ official Microsoft extension's LSP is absolutely horrible thanks to including bajillions of headers from ffmpeg, QT and Essentia, sometimes taking four seconds to reanalyze a single header file. install clangd extension (on neovim and zed, clang is the default LSP)
 
@@ -320,6 +377,9 @@ if you have any errors upon Debug on CMake extension, also add this
     "miDebuggerPath": "/usr/bin/gdb"
   },
 ```
+
+</details>
+
 ## why
 
 ### why do you have `time.h` at include folder
@@ -336,7 +396,7 @@ https://forums.gentoo.org/viewtopic-p-8823870.html?sid=373baff52f1adbc6379341f9c
 https://forums.gentoo.org/viewtopic-p-8786184.html?sid=c5d84f39b263a35504fdd4c0ffbe2c5e 
 https://forums.gentoo.org/viewtopic-p-8584839.html?sid=43aad284c43073a22c37b83ceaa01de8
 
-Compiling QTWebEngine is borderline impossible for my machine. So we just use the webkit and gtk and embed it into QWindow instead. 
+Compiling QTWebEngine is borderline impossible for my machine. So we just embed a browser into QWindow instead. 
 
 <details>
 
@@ -448,6 +508,14 @@ This project is born with the jealousy of infinite music queueing algorithm in A
 ## problems, todos, and many more rants
 
 issues never ends...
+
+### player info
+
+despite whatever the fuck I do
+
+[alt](./static/i1.png)
+
+background is pitch black, and at first initialization up next is set to something weird. 
 
 ### windows and arm toolchains (mingw, etc) does not work. 
 

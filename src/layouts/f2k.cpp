@@ -1,7 +1,6 @@
 #include "f2k.h"
 #include "QWindow"
 #include "assets/util.h"
-#include "gtk/gtk.h"
 #include "icons/play.h"
 #include "icons/skip.h"
 #include "icons/stop.h"
@@ -9,8 +8,8 @@
 #include <QBuffer>
 #include <QMovie>
 #include <QSvgRenderer>
+
 #include <gdk/gdkx.h>
-#include <gtk/gtk.h>
 #include <qabstractbutton.h>
 #include <qboxlayout.h>
 #include <qcolor.h>
@@ -20,7 +19,10 @@
 #include <qurl.h>
 #include <qwidget.h>
 #include <qwindowdefs.h>
+
+#include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
+
 PlaybackControlsLayout::PlaybackControlsLayout(QWidget *parent) {
   play_pause = new QPushButton(parent);
   skip = new QPushButton(parent);
@@ -80,53 +82,6 @@ CoverArtLabel::~CoverArtLabel() {
     placeholder_buffer->close();
     delete placeholder_buffer;
   }
-}
-TrackPlayerInfo::TrackPlayerInfo(QWidget *parent) : QWidget(parent) {
-  setMaximumHeight(200);
-
-  // Initialize GTK
-  gtk_init(nullptr, nullptr);
-
-  // Create WebKit view
-  webView = WEBKIT_WEB_VIEW(webkit_web_view_new());
-
-  // Configure WebKit settings
-  WebKitSettings *settings = webkit_web_view_get_settings(webView);
-  webkit_settings_set_enable_javascript(settings, TRUE);
-
-  // Get the GTK widget for the WebView
-  GtkWidget *gtkWidget = GTK_WIDGET(webView);
-
-  // Realize the GTK widget (create its native window)
-  gtk_widget_realize(gtkWidget);
-
-  // Get the GdkWindow from the GTK widget
-  GdkWindow *window = gtk_widget_get_window(gtkWidget);
-  if (!window) {
-    qWarning() << "Failed to get GdkWindow";
-    return;
-  }
-
-  // Get the XID from the GdkWindow
-  guintptr windowId = GDK_WINDOW_XID(window);
-
-  // Create a QWindow from the native window ID
-  QWindow *qWindow = QWindow::fromWinId(windowId);
-
-  // Create a QWidget container for the QWindow
-  QWidget *container = QWidget::createWindowContainer(qWindow, parent);
-  container->setMinimumSize(400, 200); // Set a minimum size for the container
-
-  // Add the container to the layout
-  auto layout = new QVBoxLayout(parent);
-  layout->setContentsMargins(0, 0, 0, 0);
-  layout->addWidget(container);
-
-  // Load a URL into the WebView
-  webkit_web_view_load_uri(webView, "http://localhost:31311");
-
-  // Make the GTK widget visible
-  gtk_widget_set_visible(gtkWidget, true);
 }
 
 TrackAnalysisInfo::TrackAnalysisInfo(QWidget *parent) : QWidget(parent) {}

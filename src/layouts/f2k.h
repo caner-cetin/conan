@@ -1,7 +1,6 @@
 
 
 #include <QListWidget>
-#include <gtk/gtk.h>
 #include <qabstractbutton.h>
 #include <qboxlayout.h>
 #include <qbuffer.h>
@@ -38,21 +37,11 @@ private:
   QMovie *placeholder;
   QBuffer *placeholder_buffer;
 };
-
-class TrackPlayerInfo : public QWidget {
-public:
-  TrackPlayerInfo(QWidget *parent = nullptr);
-
-private:
-  WebKitWebView *webView;
-};
-
 class TrackAnalysisInfo : public QWidget {
 public:
   TrackAnalysisInfo(QWidget *parent = nullptr);
 
 private:
-  WebKitWebView *webView;
 };
 
 class TrackList : public QListWidget {

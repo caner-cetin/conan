@@ -1,4 +1,6 @@
 
+#include "webkit_widget.h"
+#include <cstdlib>
 #include <qboxlayout.h>
 #define WINDOW_MIN_W 1700
 #define WINDOW_MIN_H 900
@@ -25,12 +27,19 @@
 #include <essentia/essentia.h>
 #include <essentia/pool.h>
 #include <fmt/core.h>
-
+#include <spdlog/spdlog.h>
 using namespace essentia;
 using namespace essentia::standard;
 std::string formatDuration(float duration);
 int main(int argc, char **argv) {
+  setenv("GALLIUM_DRIVER", "llvmpipe", 1);
+  setenv("QT_QPA_PLATFORM", "xcb", 1);
   qputenv("QT_FATAL_WARNINGS", "1");
+#ifdef NDEBUG
+  spdlog::set_level(spdlog::level::info);
+#else
+  spdlog::set_level(spdlog::level::debug);
+#endif
 
   QApplication app(argc, argv);
 
@@ -91,7 +100,9 @@ int main(int argc, char **argv) {
       {
         QVBoxLayout *playerRight = new QVBoxLayout();
         playerSection->addLayout(playerRight);
-        playerRight->addWidget(new TrackPlayerInfo());
+        auto TrackPlayerInfo = new WebKitWidget();
+        TrackPlayerInfo->loadURL("http://localhost:31311");
+        playerRight->addWidget(TrackPlayerInfo);
       }
     }
 

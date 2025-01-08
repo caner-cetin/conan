@@ -1,7 +1,6 @@
 #ifndef TOOLBAR_H
 #define TOOLBAR_H
 
-#include "workers/analysis.h"
 #include <QtCore/qtmetamacros.h>
 
 #include <QHBoxLayout>

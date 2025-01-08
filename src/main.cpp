@@ -100,8 +100,8 @@ int main(int argc, char **argv) {
       {
         QVBoxLayout *playerRight = new QVBoxLayout();
         playerSection->addLayout(playerRight);
-        auto TrackPlayerInfo = new WebKitWidget();
-        TrackPlayerInfo->loadURL("http://localhost:31311");
+        WebKitWidget *TrackPlayerInfo =
+            new WebKitWidget(nullptr, "http://localhost:31311");
         playerRight->addWidget(TrackPlayerInfo);
       }
     }

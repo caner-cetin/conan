@@ -3,12 +3,14 @@
 #include <QImage>
 #include <QWidget>
 #include <memory>
+#include <qcontainerfwd.h>
 #include <webkit2/webkit2.h>
 
 class WebKitWidget : public QWidget {
   Q_OBJECT
 public:
-  explicit WebKitWidget(QWidget *parent = nullptr);
+  explicit WebKitWidget(QWidget *parent = nullptr,
+                        const char *initial_uri = nullptr);
   ~WebKitWidget();
 
   bool initialize();

@@ -32,12 +32,13 @@ set(CMAKE_AUTORCC ON)    # Enable automatic compilation of Qt's resource files
 set(CMAKE_AUTOUIC ON)    # Enable automatic compilation of Qt's UI files
 
 # Find required external packages 
-set(CMAKE_PREFIX_PATH /usr/local/Qt-6.8.1/lib/cmake/Qt6)
-set(Qt6_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6)
-set(Qt6GuiTools_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6GuiTools)
-set(Qt6Widgets_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6Widgets)
-set(Qt6Core_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6Core)
-set(Qt6Svg_DIR /usr/local/Qt-6.8.1/lib/cmake/Qt6Svg)
+set(QT_LIB_CMAKE_DIR /usr/local/Qt-6.8.1/lib/cmake)
+set(CMAKE_PREFIX_PATH ${QT_LIB_CMAKE_DIR}/Qt6)
+set(Qt6_DIR ${QT_LIB_CMAKE_DIR}/Qt6)
+set(Qt6GuiTools_DIR ${QT_LIB_CMAKE_DIR}/Qt6GuiTools)
+set(Qt6Widgets_DIR ${QT_LIB_CMAKE_DIR}/Qt6Widgets)
+set(Qt6Core_DIR ${QT_LIB_CMAKE_DIR}/Qt6Core)
+set(Qt6Svg_DIR ${QT_LIB_CMAKE_DIR}/Qt6Svg)
 
 
 find_package(Crow REQUIRED)
@@ -145,55 +146,111 @@ set(LIBSWRESAMPLE_LIBRARY   ${FFMPEG_VENDOR_DIR}/libswresample/libswresample.a)
 set(LIBSWSCALE_LIBRARY      ${FFMPEG_VENDOR_DIR}/libswscale/libswscale.a)
 set(LIBAVDEVICE_LIBRARY     ${FFMPEG_VENDOR_DIR}/libavdevice/libavdevice.a)
 
-# Link all required libraries to the target
-# WARNING: FFmpeg libraries must be linked in this specific order due to dependencies
+# ======================= LINKER FLAGS AND SYMBOL MANAGEMENT =======================
+#
+# These flags control how symbols are handled during linking and at runtime.
+#
+# --exclude-libs,ALL
+# This flag marks all symbols from static libraries as hidden, preventing symbol 
+# conflicts between different static libraries that might define the same symbols.
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--exclude-libs,ALL")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--exclude-libs,ALL")
+
+# ========================= LIBRARY LINKING ORDER =================================
+#
+# The order of library linking is crucial to resolve symbols correctly.
+# We use --push-state and --pop-state with --as-needed/--no-as-needed to create
+# isolated groups of libraries with different linking behaviors.
+#
+# Group 1: GTK and WebKit (--no-as-needed)
+# Forces inclusion of all symbols from these libraries even if they appear unused.
+# This prevents symbol resolution issues with GUI components.
+#
+# Group 2: Regular libraries
+# Linked normally, allowing the linker to exclude unused symbols.
+#
+# Group 3: TensorFlow (--as-needed)
+# Only includes actually used symbols, preventing conflicts with other libraries
+# that might use similar dependencies (like LLVM).
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    ${TENSORFLOW_VENDOR_DIR}/lib/libtensorflow.so.2
-    ${TENSORFLOW_VENDOR_DIR}/lib/libtensorflow_framework.so.2
+    # First load GTK and WebKit with their symbols protected
+    -Wl,--push-state,--no-as-needed
+    PkgConfig::GTK3
+    PkgConfig::WEBKIT
+    -Wl,--pop-state
 
-    dl
-    pthread
-    m
-    rt
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Svg
 
-    ${Crow_LIBRARIES}
-    /usr/local/lib/libessentia.a        # Audio analysis library
-    samplerate                          # Sample rate conversion
-    # FFmpeg libraries (order matters!)
+    # X11 and video-related libraries
+    PkgConfig::X11
+    ${X11_LIBRARIES}
+    ${VDPAU_LIBRARIES}
+    va
+    va-drm
+    glslang
+
+    # Audio processing libraries
+    /usr/local/lib/libessentia.a
+    # FFmpeg libraries must be linked in this specific order due to dependencies
     ${LIBAVDEVICE_LIBRARY}
     ${LIBAVFILTER_LIBRARY}
     ${LIBAVFORMAT_LIBRARY}
     ${LIBAVCODEC_LIBRARY}
     ${LIBSWRESAMPLE_LIBRARY}
     ${LIBSWSCALE_LIBRARY}
-    ${LIBAVUTIL_LIBRARY} 
-    # Video acceleration libraries
-    va
-    va-drm
-    ${X11_LIBRARIES}
-    ${VDPAU_LIBRARIES}
-    # Various other dependencies
-    glslang
-    ${Protobuf_LIBRARIES}
-    tag                                # Audio metadata library
-    fftw3                              # Fast Fourier Transform
+    ${LIBAVUTIL_LIBRARY}
+    
+    samplerate
+    ${CHROMAPRINT_LIBRARIES}
+    ${TAGLIB_LIBRARIES}
+    tag
+    fftw3
     fftw3f
-    yaml                               # YAML parser
-    z                                  # Compression
-    bz2                                # Compression
-    lzma                               # Compression
-    # Qt libraries
-    Qt6::Core
-    Qt6::Widgets
-    Qt6::Svg
-    # Logging and formatting
+
+    # Utility libraries
+    ${Crow_LIBRARIES}
+    yaml
+    z
+    bz2
+    lzma
     spdlog::spdlog
     fmt
-    ${CHROMAPRINT_LIBRARIES}           # Audio fingerprinting
-    ${TAGLIB_LIBRARIES}
-    PkgConfig::GTK3
-    PkgConfig::WEBKIT
-    PkgConfig::X11
+    ${Protobuf_LIBRARIES}
+
+    # System libraries
+    dl
+    pthread
+    m
+    rt
+
+    # TensorFlow last with symbol isolation
+    -Wl,--push-state,--as-needed
+    ${TENSORFLOW_VENDOR_DIR}/lib/libtensorflow.so.2
+    ${TENSORFLOW_VENDOR_DIR}/lib/libtensorflow_framework.so.2
+    -Wl,--pop-state
 )
 
+# ========================= RPATH CONFIGURATION ==================================
+#
+# RPATH (Runtime Path) tells the dynamic linker where to look for shared libraries
+# when the program runs. This is crucial for finding the correct versions of
+# libraries, especially when using custom-built versions.
+#
+# BUILD_WITH_INSTALL_RPATH:
+#   TRUE means use the INSTALL_RPATH instead of the build directory paths
+#
+# INSTALL_RPATH:
+#   - $ORIGIN means "look in the same directory as the executable"
+#   - Additional paths are searched in order
+#   This helps find:
+#   1. Libraries in the same directory as the executable
+#   2. Custom TensorFlow libraries
+#   3. Custom-built Qt libraries
+#
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    BUILD_WITH_INSTALL_RPATH TRUE
+    INSTALL_RPATH "$ORIGIN:${TENSORFLOW_VENDOR_DIR}/lib:/usr/local/Qt-6.8.1/lib"
+)
 add_compile_definitions(QT_NO_KEYWORDS)

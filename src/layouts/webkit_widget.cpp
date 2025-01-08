@@ -13,6 +13,7 @@
 #include <qobjectdefs.h>
 #include <qsizepolicy.h>
 #include <qwindow.h>
+#include <string>
 #include <webkit/WebKitSettings.h>
 
 struct WebKitWidget::Private {
@@ -23,7 +24,7 @@ struct WebKitWidget::Private {
   int height{0};
 };
 
-WebKitWidget::WebKitWidget(QWidget *parent)
+WebKitWidget::WebKitWidget(QWidget *parent, const char *initial_uri)
     : QWidget(parent), d(std::make_unique<Private>()) {
   setAttribute(Qt::WA_OpaquePaintEvent);
   setAttribute(Qt::WA_NoSystemBackground);
@@ -169,8 +170,13 @@ void WebKitWidget::resizeEvent(QResizeEvent *event) {
   updateWebViewSize();
 }
 void WebKitWidget::loadURL(const QString &url) {
+  if (url.isEmpty()) {
+    spdlog::warn("url is empty, cannot load");
+    return;
+  }
+  spdlog::debug("navigating to {}", url.toStdString());
   if (d->webView) {
-    webkit_web_view_load_uri(d->webView, url.toUtf8().constData());
+    webkit_web_view_load_uri(d->webView, url.toStdString().c_str());
   }
 }
 

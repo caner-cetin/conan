@@ -26,7 +26,6 @@ set(CMAKE_CXX_STANDARD 17)              # Use C++17 standard
 set(CMAKE_CXX_STANDARD_REQUIRED ON)     # Require C++17 support (don't fall back to previous versions)
 set(CMAKE_CXX_EXTENSIONS ON)            # Allow compiler-specific extensions
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # Generate compile_commands.json for tooling
-
 # Configure Qt-specific build settings
 set(CMAKE_AUTOMOC ON)    # Enable Qt's Meta-Object Compiler
 set(CMAKE_AUTORCC ON)    # Enable automatic compilation of Qt's resource files
@@ -89,8 +88,9 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
 
 # Define vendor directory paths for better organization
-set(FFMPEG_VENDOR_DIR   ${CMAKE_SOURCE_DIR}/src/vendor/ffmpeg)
-set(GLSLANG_VENDOR_DIR  ${CMAKE_SOURCE_DIR}/src/vendor/glslang)
+set(FFMPEG_VENDOR_DIR       ${CMAKE_SOURCE_DIR}/src/vendor/ffmpeg)
+set(GLSLANG_VENDOR_DIR      ${CMAKE_SOURCE_DIR}/src/vendor/glslang)
+set(TENSORFLOW_VENDOR_DIR   ${CMAKE_SOURCE_DIR}/src/vendor/tensorflow)
 
 # Configure include directories for the target
 # PRIVATE means these includes are only used internally by this target
@@ -103,7 +103,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${X11_INCLUDE_DIRS}                    # X11 headers
     ${VDPAU_INCLUDE_DIRS}                 # VDPAU headers
     ${TAGLIB_INCLUDE_DIRS}
-    /usr/local/include/webkitgtk-4.1
+    ${WEBKIT_INCLUDE_DIRS}
     ${GTK3_INCLUDE_DIRS}
     /usr/local/include/essentia          # Audio analysis library
     samplerate                           # Audio sample rate conversion
@@ -117,7 +117,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     /usr/include/eigen3
     /usr/include/eigen3/unsupported
     # TensorFlow headers
-    /usr/local/tensorflow/include
+    ${TENSORFLOW_VENDOR_DIR}/include
     ${CHROMAPRINT_INCLUDE_DIRS}          # Chromaprint headers
     ${YAML_INCLUDE_DIR}                  # YAML parser headers
     # FFmpeg related headers
@@ -144,13 +144,12 @@ set(LIBAVFILTER_LIBRARY     ${FFMPEG_VENDOR_DIR}/libavfilter/libavfilter.a)
 set(LIBSWRESAMPLE_LIBRARY   ${FFMPEG_VENDOR_DIR}/libswresample/libswresample.a)
 set(LIBSWSCALE_LIBRARY      ${FFMPEG_VENDOR_DIR}/libswscale/libswscale.a)
 set(LIBAVDEVICE_LIBRARY     ${FFMPEG_VENDOR_DIR}/libavdevice/libavdevice.a)
-set(TF_LIB_DIR              "/usr/local/lib")
 
 # Link all required libraries to the target
 # WARNING: FFmpeg libraries must be linked in this specific order due to dependencies
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    ${TF_LIB_DIR}/libtensorflow.so.2
-    ${TF_LIB_DIR}/libtensorflow_framework.so.2
+    ${TENSORFLOW_VENDOR_DIR}/lib/libtensorflow.so.2
+    ${TENSORFLOW_VENDOR_DIR}/lib/libtensorflow_framework.so.2
 
     dl
     pthread

@@ -34,6 +34,7 @@ trust me, this is not worth your time. most depndencies are compiled from source
 ### use clang
 export the folloving envs
 ```bash
+# if required
 export CC=/usr/bin/clang-19
 export CXX=/usr/bin/clang++-19
 ```
@@ -46,77 +47,6 @@ until we are done
 ```bash
 sudo add-apt-repository ppa:oibaf/graphics-drivers
 sudo apt-get update
-sudo apt-get install \
-    libva-dev \
-    libyaml-dev \
-    libvdpau-dev \
-    libx11-dev \
-    libsamplerate0-dev \
-    libprotobuf-dev \
-    protobuf-compiler \
-    libeigen3-dev \
-    libfftw3-dev \
-    libchromaprint-dev \
-    libspdlog-dev \
-    libfmt-dev \
-    libtagc0-dev \
-    libva-drm2 \
-    libbz2-dev \
-    liblzma-dev \
-    uuid-dev \
-    libcap-dev \
-    libzmq3-dev \
-    libpwquality-dev \
-    libmemcached-dev \
-    libjemalloc-dev
-    uwsgi \
-    zlib1g-dev \
-    libgtk-3-dev \
-    libwebkit2gtk-4.1-dev \
-    ruby-full \
-    ccache
-```
-
-</details>
-
-<details>
-
-<summary>qt</summary>
-
-
-do not use package manager / pre-built libraries.
-
-from https://www.tensorflow.org/install/source
-
-> Clang is a C/C++/Objective-C compiler that is compiled in C++ based on LLVM. It is the default compiler to build TensorFlow starting with TensorFlow 2.13. 
-
-from https://doc.qt.io/qt-6/linux-building.html
-
-> Compilers & Development Packages
-> 
-> The following compilers and configurations are supported in Qt 6.8:
-> 
-> ...
-> 
-> Distribution	Architecture	Compiler
-> 
-> ...
-> 
-> Ubuntu 24.04	x86_64, arm64	GCC as provided by Canonical, GCC 13.x
-> 
-> ...
-> 
-> Other compilers and configurations might work but are not actively tested.
-
-So, even if you manage to compile the QT and TensorFlow together, they will eventually cause unsolvable problems because one is built with GCC and other is built with CLang.
-
-you have to either:
-
-- compile qt with clang
-- compile tensorflow with gcc
-
-i dont have resources to do the second option, so we are gonna compile qt with clang instead. and I recommend you to do so, because, tensorflow is such a beast to compile.
-```bash
 sudo apt install \
     ninja-build \
     libfontconfig1-dev \
@@ -158,34 +88,39 @@ sudo apt install \
     llvm-19-dev \
     libseccomp-dev \
     libseccomp2 \
-    gettext
-```
-```bash
-wget https://download.qt.io/official_releases/qt/6.8/6.8.1/single/qt-everywhere-src-6.8.1.tar.xz -C ~/Downloads/qt-everywhere-src-6.8.1.tar.xz
-cd /tmp
-tar xf ~/Downloads/qt-everywhere-src-6.8.1.tar.xz
-mkdir -p ~/dev/qt-build
-cd ~/dev/qt-build
-/tmp/qt-everywhere-src-6.8.1/qtbase/configure -top-level -debug-and-release -skip qtmultimedia -skip qtquick3dphysics -skip qtremoteobjects -skip qtvirtualkeyboard -skip qtpositioning -skip qtspeech -skip qt3d -skip qtquick3d -skip qtlanguageserver -skip qtdatavis3d -skip qtlocation -skip qtgrpc -skip qtcoap -skip qtopcua -skip qtmqtt -skip qtsensors -skip qtgraphs -skip qtconnectivity -skip qtlottie -skip qtnetworkauth -skip qtdoc -skip qtscxml -skip qtwebchannel -skip qtwebengine -skip qtwebview -skip qthttpserver -skip qtwebsockets -skip qtcharts -skip qtactiveqt  -skip-tests qtbase,qt5compat,qtimageformats,qtshadertools,qtmultimedia,qtserialport,qtserialbus,qtsvg,qttools,qttranslations,qtwayland -skip-examples qtbase,qt5compat,qtimageformats,qtshadertools,qtmultimedia,qtserialport,qtserialbus,qtsvg,qttools,qttranslations,qtwayland -gui -widgets
-cmake --build . --parallel
-sudo cmake --install .
-```
-and then
-```
-...
-After Qt is installed, you can start building applications with it.
-If you work from the command line, consider adding the Qt tools to your default PATH. This is done as follows:
-In .profile (if your shell is bash, ksh, zsh or sh), add the following lines:
-
-PATH=/usr/local/Qt-6.8.1/bin:$PATH
-export PATH
-
-In .login (if your shell is csh or tcsh), add the following line:
-
-setenv PATH /usr/local/Qt-6.8.1/bin:$PATH
+    gettext \
+    libva-dev \
+    libyaml-dev \
+    libvdpau-dev \
+    libx11-dev \
+    libsamplerate0-dev \
+    libprotobuf-dev \
+    protobuf-compiler \
+    libeigen3-dev \
+    libfftw3-dev \
+    libchromaprint-dev \
+    libspdlog-dev \
+    libfmt-dev \
+    libtagc0-dev \
+    libva-drm2 \
+    libbz2-dev \
+    liblzma-dev \
+    uuid-dev \
+    libcap-dev \
+    libzmq3-dev \
+    libpwquality-dev \
+    libmemcached-dev \
+    libjemalloc-dev
+    uwsgi \
+    zlib1g-dev \
+    libgtk-3-dev \
+    libwebkit2gtk-4.1-dev \
+    ruby-full \
+    ccache
 ```
 
 </details>
+
 
 <details>
 
@@ -244,36 +179,6 @@ sudo ln -s /usr/local/bin/glslang /usr/bin/glslang
 sudo ln -s /usr/local/bin/spirv-remap /usr/bin/spirv-remap
 ```
 
-</details>
-
-<details>
-
-<summary>gtk & webkitgtk</summary>
-
-same reason as qt. both built with GCC and cannot be used with CLang built libraries such as TensorFlow.
-
-gtk 3
-```bash
-wget https://download.gnome.org/sources/gtk+/3.24/gtk+-3.24.34.tar.xz
-tar -xf gtk+-3.24.34.tar.xz
-cd gtk+-3.24.34
-mkdir build
-cd build
-meson --prefix=/usr --buildtype=release -Dintrospection=false -Ddemos=false -Dexamples=false -Dtests=false ..
-ninja
-sudo ninja install
-```
-webkitgtk
-```bash
-wget https://webkitgtk.org/releases/webkitgtk-2.46.5.tar.xz
-tar -xf webkitgtk-2.46.5.tar.xz
-cd webkitgtk-2.46.5
-mkdir build
-cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DPORT=GTK -DENABLE_INTROSPECTION=OFF -DENABLE_GTKDOC=OFF -DENABLE_MINIBROWSER=OFF -DENABLE_GAMEPAD=OFF -DENABLE_WAYLAND_TARGET=OFF -DUSE_AVIF=OFF -DENABLE_JOURNALD_LOG=OFF -DUSE_LCMS=OFF -DUSE_GSTREAMER_TRANSCODER=OFF -DENABLE_TOUCH_EVENTS=OFF -DUSE_GTK4=OFF -DUSE_JPEGXL=OFF -S . -B build
-cd build
-ninja
-sudo ninja install
-```
 </details>
 
 <details>

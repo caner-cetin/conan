@@ -10,6 +10,7 @@ smol music recommendation engine based on local library folders.
 - [features](#features)
 - [download](#download)
 - [compile yourself](#compile-yourself)
+  - [try package repos first](#try-package-repos-first)
   - [use clang](#use-clang)
   - [dependencies](#dependencies)
   - [things may help you in development](#things-may-help-you-in-development)
@@ -30,6 +31,10 @@ this branch still requires a lot of work thanks to being in C++ space, check the
 ...
 ## compile yourself
 trust me, this is not worth your time. most depndencies are compiled from source, and it will take so much time from you, i am talking about several hours. if you follow these steps, and for uncertain reasons you decide to compile this application, you are my best friend from now on. 
+
+### try package repos first
+
+for libraries that marked as optional, try installing them from your package repository first. if they dont work, compile yourself.
 
 ### use clang
 export the folloving envs
@@ -79,41 +84,100 @@ sudo apt-get install \
 
 <details>
 
+<summary>tensorflow</summary>
+
+do NOT use versions above 2.13. **NEVER EVER CHANGE THE VERSION AND IF YOU CHANGE THE VERSION, I WILL BOOK THE FIRST FLIGHT TO YOUR HOME, STEAL ALL YOUR MCNUGGETS, AND FLY BACK HOME. I HAVE SPENT TWO WEEKS FIGURING OUT WHY, AND IF YOU STILL USE THE LATEST VERSION, I WILL DRINK THE LAST LIPTON ICE TEA BOTTLE IN YOUR FRIDGE.**
+
+<details>
+
+<summary>...but why?</summary>
+
+tensorflow is NOT COMPATIBLE with any library. from their own website:
+
+> Clang is a C/C++/Objective-C compiler that is compiled in C++ based on LLVM. It is the default compiler to build TensorFlow starting with TensorFlow 2.13. The current supported version is LLVM/Clang 17.
+
+this means that, they are bringing LLVM symbols along with the library and it will not be compatible with ANYTHING.
+
+```bash
+* thread #1, name = 'mre', stop reason = signal SIGSEGV: address not mapped to object (fault address: 0x8)
+  * frame #0: 0x00007fffcae00ff1 libtensorflow_framework.so.2`llvm::raw_svector_ostream::write_impl(char const*, unsigned long) + 17
+    frame #1: 0x00007fffa345785e libLLVM-17.so.1`llvm::raw_ostream::write(char const*, unsigned long) + 366
+    frame #2: 0x00007fffa3428e71 libLLVM-17.so.1`llvm::Twine::printOneChild(llvm::raw_ostream&, llvm::Twine::Child, llvm::Twine::NodeKind) const + 49
+    frame #3: 0x00007fffa3428b8a libLLVM-17.so.1`___lldb_unnamed_symbol51694 + 202
+    frame #4: 0x00007fffa34289e0 libLLVM-17.so.1`llvm::Twine::str[abi:cxx11]() const + 400
+    frame #5: 0x00007fffa330a470 libLLVM-17.so.1`___lldb_unnamed_symbol50045 + 240
+    frame #6: 0x00007ffff7fca71f ld-linux-x86-64.so.2`call_init(l=<unavailable>, argc=1, argv=0x00007fffffffdb08, env=0x00007fffffffdb18) at dl-init.c:74:3
+    frame #7: 0x00007ffff7fca824 ld-linux-x86-64.so.2`_dl_init [inlined] call_init(env=<unavailable>, argv=<unavailable>, argc=<unavailable>, l=<unavailable>) at dl-init.c:120:14
+    frame #8: 0x00007ffff7fca81f ld-linux-x86-64.so.2`_dl_init(main_map=0x0000555556d08890, argc=1, argv=0x00007fffffffdb08, env=0x00007fffffffdb18) at dl-init.c:121:5
+    frame #9: 0x00007ffff7fc65b2 ld-linux-x86-64.so.2`__GI__dl_catch_exception(exception=0x0000000000000000, operate=(ld-linux-x86-64.so.2`call_dl_init at dl-open.c:527:1), args=0x00007fffffffbb30) at dl-catch.c:211:7
+    frame #10: 0x00007ffff7fd1d7c ld-linux-x86-64.so.2`dl_open_worker [inlined] dl_open_worker(a=0x00007fffffffbce0) at dl-open.c:829:5
+    frame #11: 0x00007ffff7fd1d50 ld-linux-x86-64.so.2`dl_open_worker(a=0x00007fffffffbce0) at dl-open.c:792:1
+    frame #12: 0x00007ffff7fc651c ld-linux-x86-64.so.2`__GI__dl_catch_exception(exception=0x00007fffffffbcc0, operate=(ld-linux-x86-64.so.2`dl_open_worker at dl-open.c:793:1), args=0x00007fffffffbce0) at dl-catch.c:237:8
+    frame #13: 0x00007ffff7fd2164 ld-linux-x86-64.so.2`_dl_open(file="/usr/lib/x86_64-linux-gnu/dri/zink_dri.so", mode=<unavailable>, caller_dlopen=0x00007fffb0e497d0, nsid=<unavailable>, argc=1, argv=0x00007fffffffdb08, env=0x00007fffffffdb18) at dl-open.c:905:17
+    frame #14: 0x00007fffb8274194 libc.so.6`dlopen_doit(a=0x00007fffffffbf90) at dlopen.c:56:15
+    frame #15: 0x00007ffff7fc651c ld-linux-x86-64.so.2`__GI__dl_catch_exception(exception=0x00007fffffffbed0, operate=(libc.so.6`dlopen_doit at dlopen.c:48:1), args=0x00007fffffffbf90) at dl-catch.c:237:8
+    frame #16: 0x00007ffff7fc6669 ld-linux-x86-64.so.2`_dl_catch_error(objname=0x00007fffffffbf38, errstring=0x00007fffffffbf40, mallocedp=0x00007fffffffbf37, operate=<unavailable>, args=<unavailable>) at dl-catch.c:256:19
+    frame #17: 0x00007fffb8273c73 libc.so.6`_dlerror_run(operate=<unavailable>, args=<unavailable>) at dlerror.c:138:17
+    frame #18: 0x00007fffb827424f libc.so.6`___dlopen [inlined] dlopen_implementation(dl_caller=<unavailable>, mode=<unavailable>, file=<unavailable>) at dlopen.c:71:10
+    frame #19: 0x00007fffb8274230 libc.so.6`___dlopen(file=<unavailable>, mode=<unavailable>) at dlopen.c:81:12
+    frame #20: 0x00007fffb0e497d0 libGLX_mesa.so.0`___lldb_unnamed_symbol2895 + 208
+    frame #21: 0x00007fffb0e4999e libGLX_mesa.so.0`___lldb_unnamed_symbol2896 + 46
+    frame #22: 0x00007fffb0e26d5d libGLX_mesa.so.0`___lldb_unnamed_symbol2408 + 61
+    frame #23: 0x00007fffb0e288d8 libGLX_mesa.so.0`___lldb_unnamed_symbol2452 + 120
+    frame #24: 0x00007fffb0e2da71 libGLX_mesa.so.0`___lldb_unnamed_symbol2539 + 289
+    frame #25: 0x00007fffb0e2eb19 libGLX_mesa.so.0`___lldb_unnamed_symbol2546 + 1097
+    frame #26: 0x00007fffb0e2a0af libGLX_mesa.so.0`___lldb_unnamed_symbol2483 + 31
+    frame #27: 0x00007fffb0e2ac49 libGLX_mesa.so.0`___lldb_unnamed_symbol2490 + 57
+    frame #28: 0x00007fffb34fea7d libGLX.so.0`glXChooseFBConfig + 77
+    frame #29: 0x00007fffb772520e libQt6Gui.so.6`qglx_findConfig(_XDisplay*, int, QSurfaceFormat, bool, int, int) + 238
+    frame #30: 0x00007fffb0ea7e22 libqxcb-glx-integration.so`___lldb_unnamed_symbol504 + 258
+    frame #31: 0x00007fffb0ea9131 libqxcb-glx-integration.so`___lldb_unnamed_symbol505 + 145
+    frame #32: 0x00007fffb765e015 libQt6Gui.so.6`QOpenGLContext::create() + 53
+    frame #33: 0x00007fffbc91d81f libQt6WebEngineCore.so.6`QtWebEngineCore::initialize() + 207
+    frame #34: 0x00007fffc28ab6c2 libQt6Core.so.6`QCoreApplicationPrivate::init() + 1170
+    frame #35: 0x00007fffb73f18ff libQt6Gui.so.6`QGuiApplicationPrivate::init() + 47
+    frame #36: 0x00007fffc21bd985 libQt6Widgets.so.6`QApplicationPrivate::init() + 21
+    frame #37: 0x00005555555551ec mre`main + 44
+    frame #38: 0x00007fffb82061ca libc.so.6`__libc_start_call_main(main=(mre`main), argc=1, argv=0x00007fffffffdb08) at libc_start_call_main.h:58:16
+    frame #39: 0x00007fffb820628b libc.so.6`__libc_start_main_impl(main=(mre`main), argc=1, argv=0x00007fffffffdb08, init=<unavailable>, fini=<unavailable>, rtld_fini=<unavailable>, stack_end=0x00007fffffffdaf8) at libc-start.c:360:3
+    frame #40: 0x00005555555550f5 mre`_start + 37
+  thread #2, name = 'QXcbEventQueue'
+    frame #0: 0x00007fffb82f74cd libc.so.6`__GI___poll(fds=0x00007fffb16b9628, nfds=1, timeout=-1) at poll.c:29:10
+    frame #1: 0x00007fffb663a8ca libxcb.so.1`___lldb_unnamed_symbol794 + 154
+    frame #2: 0x00007fffb663c28c libxcb.so.1`xcb_wait_for_event + 108
+    frame #3: 0x00007fffb17b37c0 libQt6XcbQpa.so.6`___lldb_unnamed_symbol2478 + 64
+    frame #4: 0x00007fffc29eb48d libQt6Core.so.6`___lldb_unnamed_symbol11912 + 349
+    frame #5: 0x00007fffb8278a94 libc.so.6`start_thread(arg=<unavailable>) at pthread_create.c:447:8
+    frame #6: 0x00007fffb8305c3c libc.so.6`__clone3 at clone3.S:78
+```
+
+you will always encounter errors like this, even if you dont use the tensorflow, linking this library will be enough to segmentation fault everything, because, this megacorporation called Google, is using a mastermind engineering product Bazel, and they are bringing all the custom built libLLVM symbols to your application. if you stay below the 2.13,  you will still use the GCC built library, you wont need to build the entire library all over again, and, our app will work just fine anyways. 
+
+you cannot isolate the llvm symbols brought by tensorflow, it is borderline impossible to isolate your own LLVM symbols coming from clang, and tensorflow's LLVM symbols when built by them.
+
+*it is dumb*
+*it is really cursed*
+
+yes it is. nothing built by google has made a flying fucking sense for the last 15 years. this consumed two whole weeks and I could finish the application with this effort. but. yea. move on now.
+
+</details>
+
+
+```bash
+wget -q https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-gpu-linux-x86_64-2.12.1.tar.gz  
+mkdir -p src/vendor/tensorflow
+sudo tar -C src/vendor/tensorflow -xzf libtensorflow-gpu-linux-x86_64-2.12.1.tar.gz
+```
+
+
+
+</details>
+
+
+<details>
+
 <summary>qt</summary>
 
-
-do not use package manager / pre-built libraries.
-
-from https://www.tensorflow.org/install/source
-
-> Clang is a C/C++/Objective-C compiler that is compiled in C++ based on LLVM. It is the default compiler to build TensorFlow starting with TensorFlow 2.13. 
-
-from https://doc.qt.io/qt-6/linux-building.html
-
-> Compilers & Development Packages
-> 
-> The following compilers and configurations are supported in Qt 6.8:
-> 
-> ...
-> 
-> Distribution	Architecture	Compiler
-> 
-> ...
-> 
-> Ubuntu 24.04	x86_64, arm64	GCC as provided by Canonical, GCC 13.x
-> 
-> ...
-> 
-> Other compilers and configurations might work but are not actively tested.
-
-So, even if you manage to compile the QT and TensorFlow together, they will eventually cause unsolvable problems because one is built with GCC and other is built with CLang.
-
-you have to either:
-
-- compile qt with clang
-- compile tensorflow with gcc
-
-i dont have resources to do the second option, so we are gonna compile qt with clang instead. and I recommend you to do so, because, tensorflow is such a beast to compile.
 ```bash
 sudo apt install \
     ninja-build \
@@ -276,19 +340,6 @@ sudo ninja install
 
 <details>
 
-<summary>tensorflow</summary>
-
-```bash
-# get appropiate filename here https://www.tensorflow.org/install/lang_c#download_and_extract
-FILENAME=libtensorflow-gpu-linux-x86_64.tar.gz.1
-wget -q --no-check-certificate https://storage.googleapis.com/tensorflow/versions/2.18.0/${FILENAME}
-sudo tar -C /usr/local -xzf ${FILENAME}
-```
-
-</details>
-
-<details>
-
 <summary>crow</summary>
 
 ```bash
@@ -396,107 +447,7 @@ https://forums.gentoo.org/viewtopic-p-8584839.html?sid=43aad284c43073a22c37b83ce
 
 Compiling QTWebEngine is borderline impossible for my machine. So we just embed a browser into QWindow instead. 
 
-<details>
 
-<summary>And, TensorFlow & QTWebEngine cannot be linked together. yes you read that right.</summary>
-
-Try to execute the following code:
-```cpp
-#include <QApplication>
-#include <QWebEngineView>
-#include <tensorflow/c/c_api.h>
-
-int main(int argc, char *argv[]) {
-    QApplication app(argc, argv);
-
-    printf("TensorFlow version: %s\n", TF_Version());
-
-    QWebEngineView view;
-    view.show();
-
-    return app.exec();
-}
-```
-with the command:
-```bash
-clang++-19 mre.cpp \
-    -I/usr/include/x86_64-linux-gnu/qt6 \
-    -I/usr/include/x86_64-linux-gnu/qt6/QtWebEngineCore \
-    -I/usr/include/x86_64-linux-gnu/qt6/QtWebEngineWidgets \
-    -I/usr/include/x86_64-linux-gnu/qt6/QtCore \
-    -I/usr/include/x86_64-linux-gnu/qt6/QtWidgets \
-    -I/usr/local/tensorflow/include \
-    -L/usr/local/lib \
-    -ltensorflow \
-    -ltensorflow_framework \
-    -lQt6Core \
-    -lQt6Widgets \
-    -lQt6WebEngineCore \
-    -lQt6WebEngineWidgets \
-    -o mre
-```
-
-```bash
-* thread #1, name = 'mre', stop reason = signal SIGSEGV: address not mapped to object (fault address: 0x8)
-  * frame #0: 0x00007fffcae00ff1 libtensorflow_framework.so.2`llvm::raw_svector_ostream::write_impl(char const*, unsigned long) + 17
-    frame #1: 0x00007fffa345785e libLLVM-17.so.1`llvm::raw_ostream::write(char const*, unsigned long) + 366
-    frame #2: 0x00007fffa3428e71 libLLVM-17.so.1`llvm::Twine::printOneChild(llvm::raw_ostream&, llvm::Twine::Child, llvm::Twine::NodeKind) const + 49
-    frame #3: 0x00007fffa3428b8a libLLVM-17.so.1`___lldb_unnamed_symbol51694 + 202
-    frame #4: 0x00007fffa34289e0 libLLVM-17.so.1`llvm::Twine::str[abi:cxx11]() const + 400
-    frame #5: 0x00007fffa330a470 libLLVM-17.so.1`___lldb_unnamed_symbol50045 + 240
-    frame #6: 0x00007ffff7fca71f ld-linux-x86-64.so.2`call_init(l=<unavailable>, argc=1, argv=0x00007fffffffdb08, env=0x00007fffffffdb18) at dl-init.c:74:3
-    frame #7: 0x00007ffff7fca824 ld-linux-x86-64.so.2`_dl_init [inlined] call_init(env=<unavailable>, argv=<unavailable>, argc=<unavailable>, l=<unavailable>) at dl-init.c:120:14
-    frame #8: 0x00007ffff7fca81f ld-linux-x86-64.so.2`_dl_init(main_map=0x0000555556d08890, argc=1, argv=0x00007fffffffdb08, env=0x00007fffffffdb18) at dl-init.c:121:5
-    frame #9: 0x00007ffff7fc65b2 ld-linux-x86-64.so.2`__GI__dl_catch_exception(exception=0x0000000000000000, operate=(ld-linux-x86-64.so.2`call_dl_init at dl-open.c:527:1), args=0x00007fffffffbb30) at dl-catch.c:211:7
-    frame #10: 0x00007ffff7fd1d7c ld-linux-x86-64.so.2`dl_open_worker [inlined] dl_open_worker(a=0x00007fffffffbce0) at dl-open.c:829:5
-    frame #11: 0x00007ffff7fd1d50 ld-linux-x86-64.so.2`dl_open_worker(a=0x00007fffffffbce0) at dl-open.c:792:1
-    frame #12: 0x00007ffff7fc651c ld-linux-x86-64.so.2`__GI__dl_catch_exception(exception=0x00007fffffffbcc0, operate=(ld-linux-x86-64.so.2`dl_open_worker at dl-open.c:793:1), args=0x00007fffffffbce0) at dl-catch.c:237:8
-    frame #13: 0x00007ffff7fd2164 ld-linux-x86-64.so.2`_dl_open(file="/usr/lib/x86_64-linux-gnu/dri/zink_dri.so", mode=<unavailable>, caller_dlopen=0x00007fffb0e497d0, nsid=<unavailable>, argc=1, argv=0x00007fffffffdb08, env=0x00007fffffffdb18) at dl-open.c:905:17
-    frame #14: 0x00007fffb8274194 libc.so.6`dlopen_doit(a=0x00007fffffffbf90) at dlopen.c:56:15
-    frame #15: 0x00007ffff7fc651c ld-linux-x86-64.so.2`__GI__dl_catch_exception(exception=0x00007fffffffbed0, operate=(libc.so.6`dlopen_doit at dlopen.c:48:1), args=0x00007fffffffbf90) at dl-catch.c:237:8
-    frame #16: 0x00007ffff7fc6669 ld-linux-x86-64.so.2`_dl_catch_error(objname=0x00007fffffffbf38, errstring=0x00007fffffffbf40, mallocedp=0x00007fffffffbf37, operate=<unavailable>, args=<unavailable>) at dl-catch.c:256:19
-    frame #17: 0x00007fffb8273c73 libc.so.6`_dlerror_run(operate=<unavailable>, args=<unavailable>) at dlerror.c:138:17
-    frame #18: 0x00007fffb827424f libc.so.6`___dlopen [inlined] dlopen_implementation(dl_caller=<unavailable>, mode=<unavailable>, file=<unavailable>) at dlopen.c:71:10
-    frame #19: 0x00007fffb8274230 libc.so.6`___dlopen(file=<unavailable>, mode=<unavailable>) at dlopen.c:81:12
-    frame #20: 0x00007fffb0e497d0 libGLX_mesa.so.0`___lldb_unnamed_symbol2895 + 208
-    frame #21: 0x00007fffb0e4999e libGLX_mesa.so.0`___lldb_unnamed_symbol2896 + 46
-    frame #22: 0x00007fffb0e26d5d libGLX_mesa.so.0`___lldb_unnamed_symbol2408 + 61
-    frame #23: 0x00007fffb0e288d8 libGLX_mesa.so.0`___lldb_unnamed_symbol2452 + 120
-    frame #24: 0x00007fffb0e2da71 libGLX_mesa.so.0`___lldb_unnamed_symbol2539 + 289
-    frame #25: 0x00007fffb0e2eb19 libGLX_mesa.so.0`___lldb_unnamed_symbol2546 + 1097
-    frame #26: 0x00007fffb0e2a0af libGLX_mesa.so.0`___lldb_unnamed_symbol2483 + 31
-    frame #27: 0x00007fffb0e2ac49 libGLX_mesa.so.0`___lldb_unnamed_symbol2490 + 57
-    frame #28: 0x00007fffb34fea7d libGLX.so.0`glXChooseFBConfig + 77
-    frame #29: 0x00007fffb772520e libQt6Gui.so.6`qglx_findConfig(_XDisplay*, int, QSurfaceFormat, bool, int, int) + 238
-    frame #30: 0x00007fffb0ea7e22 libqxcb-glx-integration.so`___lldb_unnamed_symbol504 + 258
-    frame #31: 0x00007fffb0ea9131 libqxcb-glx-integration.so`___lldb_unnamed_symbol505 + 145
-    frame #32: 0x00007fffb765e015 libQt6Gui.so.6`QOpenGLContext::create() + 53
-    frame #33: 0x00007fffbc91d81f libQt6WebEngineCore.so.6`QtWebEngineCore::initialize() + 207
-    frame #34: 0x00007fffc28ab6c2 libQt6Core.so.6`QCoreApplicationPrivate::init() + 1170
-    frame #35: 0x00007fffb73f18ff libQt6Gui.so.6`QGuiApplicationPrivate::init() + 47
-    frame #36: 0x00007fffc21bd985 libQt6Widgets.so.6`QApplicationPrivate::init() + 21
-    frame #37: 0x00005555555551ec mre`main + 44
-    frame #38: 0x00007fffb82061ca libc.so.6`__libc_start_call_main(main=(mre`main), argc=1, argv=0x00007fffffffdb08) at libc_start_call_main.h:58:16
-    frame #39: 0x00007fffb820628b libc.so.6`__libc_start_main_impl(main=(mre`main), argc=1, argv=0x00007fffffffdb08, init=<unavailable>, fini=<unavailable>, rtld_fini=<unavailable>, stack_end=0x00007fffffffdaf8) at libc-start.c:360:3
-    frame #40: 0x00005555555550f5 mre`_start + 37
-  thread #2, name = 'QXcbEventQueue'
-    frame #0: 0x00007fffb82f74cd libc.so.6`__GI___poll(fds=0x00007fffb16b9628, nfds=1, timeout=-1) at poll.c:29:10
-    frame #1: 0x00007fffb663a8ca libxcb.so.1`___lldb_unnamed_symbol794 + 154
-    frame #2: 0x00007fffb663c28c libxcb.so.1`xcb_wait_for_event + 108
-    frame #3: 0x00007fffb17b37c0 libQt6XcbQpa.so.6`___lldb_unnamed_symbol2478 + 64
-    frame #4: 0x00007fffc29eb48d libQt6Core.so.6`___lldb_unnamed_symbol11912 + 349
-    frame #5: 0x00007fffb8278a94 libc.so.6`start_thread(arg=<unavailable>) at pthread_create.c:447:8
-    frame #6: 0x00007fffb8305c3c libc.so.6`__clone3 at clone3.S:78
-```
-
-notice this line
-```bash
-frame #33: 0x00007fffbc91d81f libQt6WebEngineCore.so.6`QtWebEngineCore::initialize() + 207
-```
-
-QTWebEngineCore and TensorFlow is incompatible. I have spent several hours to debug this, and, sole reason is QT being compiled with GCC. See the compilation of QT section where i explained how TF is built based on LLVM and QT is GCC. yes, it is dumb. beyond dumb.
-
-</details>
 
 ### why did you create this project
 

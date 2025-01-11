@@ -4,6 +4,7 @@
 #include <qboxlayout.h>
 #include <qnamespace.h>
 #include <qobject.h>
+#include <qpushbutton.h>
 #define WINDOW_MIN_W 1700
 #define WINDOW_MIN_H 900
 
@@ -101,7 +102,15 @@ int main(int argc, char **argv) {
                          &CoverArtLabel::on_cover_art_change,
                          Qt::QueuedConnection);
         PlaybackControlsLayout *playbackControls = new PlaybackControlsLayout();
-
+        QObject::connect(playbackControls->play_pause, &QPushButton::clicked,
+                         server, &HttpWorker::handle_play_pause_button_event,
+                         Qt::QueuedConnection);
+        QObject::connect(playbackControls->skip, &QPushButton::clicked, server,
+                         &HttpWorker::handle_skip_button_event,
+                         Qt::QueuedConnection);
+        QObject::connect(playbackControls->stop, &QPushButton::clicked, server,
+                         &HttpWorker::handle_stop_button_event,
+                         Qt::QueuedConnection);
         playerLeft->addWidget(coverArt);
         playerLeft->addLayout(playbackControls);
       }

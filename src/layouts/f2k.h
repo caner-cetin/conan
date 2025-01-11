@@ -20,12 +20,12 @@ class PlaybackControlsLayout : public QHBoxLayout {
 
 public:
   PlaybackControlsLayout(QWidget *parent = nullptr);
-
-private:
-  QButtonGroup *group;
   QPushButton *play_pause;
   QPushButton *stop;
   QPushButton *skip;
+
+private:
+  QButtonGroup *group;
 };
 
 class CoverArtLabel : public QLabel {

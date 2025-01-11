@@ -1,0 +1,25 @@
+{
+   TensorFlow_Kernel_Registration
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_operator_new
+   fun:*tensorflow*OpKernelRegistrar*
+   fun:*static_initialization*
+}
+
+{
+   TensorFlow_Static_Init
+   Memcheck:Leak
+   match-leak-kinds: reachable,possible
+   ...
+   fun:*tensorflow*
+}
+
+{
+   Qt_Static_String_Alloc
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QString*
+}

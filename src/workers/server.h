@@ -22,6 +22,9 @@ public:
   }
 public Q_SLOTS:
   void update_player_state();
+  void handle_play_pause_button_event();
+  void handle_skip_button_event();
+  void handle_stop_button_event();
 Q_SIGNALS:
   void cover_art_changed(std::vector<unsigned char> data);
 
@@ -39,4 +42,7 @@ private:
   void broadcast_currently_playing(bool clear = false);
   void broadcast_all_properties();
   void fetch_and_broadcast_current_and_up_next_track();
+
+  bool up_next_clear = true;
+  bool currently_playing_clear = true;
 };

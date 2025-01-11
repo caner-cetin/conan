@@ -39,10 +39,12 @@ set(Qt6GuiTools_DIR ${QT_LIB_CMAKE_DIR}/Qt6GuiTools)
 set(Qt6Widgets_DIR ${QT_LIB_CMAKE_DIR}/Qt6Widgets)
 set(Qt6Core_DIR ${QT_LIB_CMAKE_DIR}/Qt6Core)
 set(Qt6Svg_DIR ${QT_LIB_CMAKE_DIR}/Qt6Svg)
+set(Qt6Concurrent_DIR ${QT_LIB_CMAKE_DIR}/Qt6Concurrent)
+
 
 
 find_package(Crow REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Svg)  # Qt6 components
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Svg Concurrent)  # Qt6 components
 find_package(spdlog REQUIRED)    # Logging library
 find_package(glslang REQUIRED)   # GLSL compiler
 find_package(Protobuf REQUIRED)  # Protocol Buffers

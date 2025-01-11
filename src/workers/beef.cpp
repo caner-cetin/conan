@@ -11,39 +11,30 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
-#include <variant>
+
 using namespace nlohmann;
 using namespace BeefWeb;
-size_t CurlWrite_CallbackFunc_StdString(void *contents, size_t size,
-                                        size_t nmemb, std::string *s);
-size_t CurlWrite_CallbackFunc_StdBytes(void *contents, size_t size,
-                                       size_t nmemb, void *userp);
+
 const char *get_api_url() {
   const char *env_url = getenv("FOOBAR_API_URL");
   return env_url ? env_url : "http://192.168.56.1:8880/api";
 }
 
 std::unique_ptr<PlayerState::Player> PlayerState::query() {
-  CURL *client = curl_easy_init();
-  if (!client) {
-    spdlog::warn("cannot initialize curl client");
-    return nullptr;
-  }
+  CurlRAII curl;
   std::string body;
-  curl_easy_setopt(client, CURLOPT_URL,
+  curl_easy_setopt(curl, CURLOPT_URL,
                    fmt::format("{}/player?columns={}", get_api_url(),
                                fmt::join(TrackQueryColumns, ","))
                        .c_str());
-  curl_easy_setopt(client, CURLOPT_WRITEFUNCTION,
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
                    CurlWrite_CallbackFunc_StdString);
-  curl_easy_setopt(client, CURLOPT_WRITEDATA, &body);
-  CURLcode op = curl_easy_perform(client);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
+  CURLcode op = curl_easy_perform(curl);
   if (op != CURLE_OK) {
     spdlog::warn("cannot query player state: {}", curl_easy_strerror(op));
-    curl_easy_cleanup(client);
     return nullptr;
   }
-  curl_easy_cleanup(client);
   json data = json::parse(body);
   return std::make_unique<PlayerState::Player>(
       data.get<PlayerState::State>().player);
@@ -54,33 +45,26 @@ PlaylistItems::current_and_next_track(PlayerState::ActiveItem *active_item) {
   if (active_item->playlistId == "") {
     return {nullptr, nullptr};
   }
-  CURL *client = curl_easy_init();
-  if (!client) {
-    spdlog::warn("cannot initialize curl client");
-    return {nullptr, nullptr};
-  }
+  CurlRAII curl;
   std::string body;
   std::string target = fmt::format(
       "{}/playlists/{}/items/{}:2?columns={}", get_api_url(),
       active_item->playlistId,                           // playlist id
       active_item->index == -1 ? 0 : active_item->index, // offset
       fmt::join(TrackQueryColumns, ",")); // which columns to retrieve
-  curl_easy_setopt(client, CURLOPT_URL, target.c_str());
-  curl_easy_setopt(client, CURLOPT_WRITEFUNCTION,
+  curl_easy_setopt(curl, CURLOPT_URL, target.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
                    CurlWrite_CallbackFunc_StdString);
-  curl_easy_setopt(client, CURLOPT_WRITEDATA, &body);
-  CURLcode op = curl_easy_perform(client);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
+  CURLcode op = curl_easy_perform(curl);
   if (op != CURLE_OK) {
     spdlog::warn("cannot query player state: {}", curl_easy_strerror(op));
-    curl_easy_cleanup(client);
     return {nullptr, nullptr};
   }
-  curl_easy_cleanup(client);
   json data = json::parse(body);
   Playlist playlist = data.get<PlaylistItems::Playlist>();
   if (playlist.playlistItems.items.empty()) {
     spdlog::info("there are no tracks in queue");
-    curl_easy_cleanup(client);
     return {nullptr, nullptr};
   }
   for (auto &item : playlist.playlistItems.items) {
@@ -103,7 +87,7 @@ PlaylistItems::current_and_next_track(PlayerState::ActiveItem *active_item) {
 }
 
 std::unique_ptr<std::vector<unsigned char>> PlayerState::ActiveItem::artwork() {
-  CURL *curl = curl_easy_init();
+  CurlRAII curl;
 
   std::vector<unsigned char> image;
   curl_easy_setopt(curl, CURLOPT_URL,
@@ -121,31 +105,6 @@ std::unique_ptr<std::vector<unsigned char>> PlayerState::ActiveItem::artwork() {
     return nullptr;
   }
   return std::make_unique<std::vector<unsigned char>>(image);
-}
-
-// https://stackoverflow.com/a/36401787/22757599
-size_t CurlWrite_CallbackFunc_StdString(void *contents, size_t size,
-                                        size_t nmemb, std::string *s) {
-  size_t newLength = size * nmemb;
-  try {
-    s->append((char *)contents, newLength);
-  } catch (std::bad_alloc &e) {
-    // handle memory problem
-    return 0;
-  }
-  return newLength;
-}
-
-// write data must be the type of std::vector<unsigned char>
-size_t CurlWrite_CallbackFunc_StdBytes(void *contents, size_t size,
-                                       size_t nmemb, void *userp) {
-  size_t realsize = size * nmemb;
-  std::vector<unsigned char> *mem = (std::vector<unsigned char> *)userp;
-  size_t current_size = mem->size();
-  mem->resize(current_size + realsize);
-  std::memcpy(mem->data() + current_size, contents, realsize);
-
-  return realsize;
 }
 
 std::unique_ptr<Track>
@@ -174,6 +133,44 @@ columns_to_track(const std::vector<std::string> &columns) {
             c[6]});
 }
 
+void BeefWeb::Playback::play_pause_toggle() {
+  CurlRAII curl;
+  std::string target = fmt::format("{}/player/pause/toggle", get_api_url());
+  curl_easy_setopt(curl, CURLOPT_URL, target.c_str());
+  curl.set_empty_post_request();
+  CURLcode op = curl_easy_perform(curl);
+  if (op != CURLE_OK) {
+    spdlog::error("cannot play track, error in /player/play: {}",
+                  curl_easy_strerror(op));
+    return;
+  }
+}
+
+void BeefWeb::Playback::skip() {
+  CurlRAII curl;
+  curl_easy_setopt(curl, CURLOPT_URL,
+                   fmt::format("{}/player/next", get_api_url()).c_str());
+  curl.set_empty_post_request();
+  CURLcode op = curl_easy_perform(curl);
+  if (op != CURLE_OK) {
+    spdlog::error("cannot skip track, error in /player/next: {}",
+                  curl_easy_strerror(op));
+    return;
+  }
+}
+
+void BeefWeb::Playback::stop() {
+  CurlRAII curl;
+  curl_easy_setopt(curl, CURLOPT_URL,
+                   fmt::format("{}/player/stop", get_api_url()).c_str());
+  curl.set_empty_post_request();
+  CURLcode op = curl_easy_perform(curl);
+  if (op != CURLE_OK) {
+    spdlog::error("cannot stop track, error in /player/stop: {}",
+                  curl_easy_strerror(op));
+    return;
+  }
+}
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠴⢶⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⣄⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢎⡃⢻⣫⡂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣿⣿⣟⡶⣤⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣜⢢⡾⡧⢣⢻⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀

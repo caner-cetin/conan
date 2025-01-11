@@ -56,11 +56,15 @@ public:
     return format_to(ctx.out(), "{}", status); // --== KEY LINE ==--
   }
 };
-
 // https://editor.swagger.io/
 // import from url
 // https://raw.githubusercontent.com/hyperblast/beefweb/96091e9e15a32211e499f447e9112d334311bcb3/docs/player-api.yml
 namespace BeefWeb {
+namespace Playback {
+void play_pause_toggle();
+void stop();
+void skip();
+} // namespace Playback
 namespace PlayerState { // /player
 class Info {
 public:

@@ -6,7 +6,9 @@
 #include "crow/common.h"
 #include "crow/http_response.h"
 #include "workers/beef.h"
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <qmutex.h>
@@ -18,7 +20,6 @@
 #define CROW_ENFORCE_WS_SPEC
 #include "crow/websocket.h"
 #include <nlohmann/json.hpp>
-
 using json = nlohmann::json;
 
 HttpWorker::HttpWorker(QObject *parent) : QThread(parent) {}
@@ -105,21 +106,28 @@ void HttpWorker::fetch_and_broadcast_current_and_up_next_track() {
   auto queue = BeefWeb::PlaylistItems::current_and_next_track(
       &current_player_state->activeItem);
   if (queue.first) {
+    if ((currently_playing && queue.first->album != currently_playing->album) ||
+        (!currently_playing)) {
+      auto cover_art = current_player_state->activeItem.artwork();
+      if (cover_art) {
+        cover_art_changed(*cover_art);
+      }
+    }
     currently_playing = std::move(queue.first);
     broadcast_currently_playing();
-    auto cover_art = current_player_state->activeItem.artwork();
-    if (cover_art) {
-      cover_art_changed(*cover_art);
-    }
-  } else {
+    currently_playing_clear = false;
+  } else if (currently_playing_clear == false && !queue.first) {
     broadcast_currently_playing(true);
+    currently_playing_clear = true;
     cover_art_changed({});
   }
   if (queue.second) {
     up_next = std::move(queue.second);
     broadcast_up_next();
-  } else {
+    up_next_clear = false;
+  } else if (up_next_clear == false && !queue.second) {
     broadcast_up_next(true);
+    up_next_clear = true;
   }
 }
 void HttpWorker::broadcast_player_state() {
@@ -139,8 +147,11 @@ void HttpWorker::broadcast_player_state() {
 void HttpWorker::broadcast_currently_playing(bool clear) {
   if (current_player_state && client && (currently_playing || clear == true)) {
     json message = {
-        {{"UpdateTitle", fmt::format("<div id='Title'>{}</div>",
-                                     clear ? "" : currently_playing->title)},
+        {{"UpdateTitle",
+          fmt::format("<div id='Title'>{}</div>",
+                      clear ? ""
+                            : fmt::format("{} - {}", currently_playing->artist,
+                                          currently_playing->title))},
          {"UpdateAlbum", fmt::format("<div id='Album'>{}</div>",
                                      clear ? "" : currently_playing->album)},
          {"hx-swap-oob", "true"}}};
@@ -152,8 +163,11 @@ void HttpWorker::broadcast_currently_playing(bool clear) {
 void HttpWorker::broadcast_up_next(bool clear) {
   if (current_player_state && client && (up_next || clear == true)) {
     json message = {
-        {{"UpdateUpNextTitle", fmt::format("<div id='UpNextTitle'>{}</div>",
-                                           clear ? "" : up_next->title)},
+        {{"UpdateUpNextTitle",
+          fmt::format(
+              "<div id='UpNextTitle'>{}</div>",
+              clear ? ""
+                    : fmt::format("{} - {}", up_next->artist, up_next->title))},
          {"UpdateUpNextAlbum", fmt::format("<div id='UpNextAlbum'>{}</div>",
                                            clear ? "" : up_next->album)},
          {"hx-swap-oob", "true"}}};
@@ -161,3 +175,46 @@ void HttpWorker::broadcast_up_next(bool clear) {
     client->send_text(message_str);
   }
 }
+
+void HttpWorker::handle_play_pause_button_event() {
+  bool paused = current_player_state->playbackState == PlaybackState::Paused;
+  bool stopped = current_player_state->playbackState == PlaybackState::Stopped;
+  run_function_non_blocking(BeefWeb::Playback::play_pause_toggle);
+}
+
+void HttpWorker::handle_skip_button_event() {
+  run_function_non_blocking(BeefWeb::Playback::skip);
+}
+
+void HttpWorker::handle_stop_button_event() {
+  run_function_non_blocking(BeefWeb::Playback::stop);
+}
+
+// ⣿⣿⣿⡿⣽⢟⣽⣿⣿⣿⣫⣿⣿⢷⣿⣿⣿⣿⣿⣿⡫⣺⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡞⣿⣿⣷⢿⣿⣿⣿⣿⣿⣿⡏⣿⣻⢿⣝⣽⢼⢿⡇⣟⢼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢯⢿⢽⣗⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+// ⣿⣯⣿⢳⡿⣹⣿⣿⣿⡯⣿⣿⣏⣿⣿⣿⣿⣿⣿⣱⣗⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢿⣿⣻⣽⣿⣽⣗⣻⣿⣿⢽⣿⣿⢿⣿⢿⣻⣽⡺⡭⡳⡣⣿⣸⣿⡇⡎⣿⣿⣟⣯⣿⣷⣿⢿⣽⣿⣽⣾⣿⣿⣝⣯⢿⣺⣿⡿⣯⣷⣿⡿⣷⣿⢿⣾⣿⣽⣾⣿⣾⣿⣷
+// ⣿⣯⣗⣿⢻⣿⡿⣿⣿⣸⣿⡟⣼⣿⣛⣝⠿⣿⣱⣿⢹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣻⣿⣿⣿⢹⣿⡿⣟⢞⣿⣿⡞⣿⡿⣿⣿⣿⡿⣏⣞⢾⣝⢭⣿⢽⡿⡇⣻⣿⣯⣿⣿⣟⣷⣿⣿⣿⣻⣽⣿⢿⣾⣗⡯⡿⣽⣾⣿⣿⢿⣻⣿⡿⣿⢿⣻⣯⣿⣿⣽⣷⣿⣯
+// ⣿⣽⢸⡯⣾⣟⣿⣻⡞⣿⣟⢯⣿⣿⣿⢿⡿⣴⣭⣛⢼⣿⣯⣿⣟⣿⣿⣟⣿⣟⣿⣽⣿⣿⣻⣽⣿⡿⣟⣯⣿⡏⣿⣏⢮⡳⣎⢯⡣⡿⣿⣿⣿⣽⢣⢗⡷⣿⣳⡣⣿⢸⣟⣗⢿⣿⣽⣿⣾⣿⣟⣯⣷⣿⣿⣿⣻⣿⣿⢮⣻⣽⣻⣾⣿⣾⣿⣿⣿⢿⣿⣿⣿⣿⢿⣽⣿⣽⣷⣿
+// ⣿⣝⣯⢿⡽⣯⣿⣽⡏⣿⣝⣾⣟⣷⡿⣽⢽⣷⣿⡟⣾⣶⣻⣻⣿⣿⣻⣿⣿⡏⣿⣿⣿⣻⣿⣿⣿⣿⣿⣿⣿⣏⣿⣗⢵⢯⣿⣵⣳⣝⢭⡻⣫⣣⡏⡗⣝⣺⣺⡪⢽⣞⣯⣿⣹⣯⣿⣯⣷⣿⡿⣿⣿⢿⣿⣾⣿⢿⣻⡹⣗⣟⡎⣿⣾⣿⣽⣿⣾⣿⣿⢷⣿⡿⣿⡿⣯⣿⣿⣽
+// ⣿⢇⡿⣸⣯⢷⣟⣾⢸⣟⢧⡷⣟⡷⣣⣣⣿⣿⣻⣏⣿⢇⣿⢷⣿⣻⣿⣻⣽⡧⣿⣿⣿⣿⢿⣻⣽⣾⣿⣿⣻⣯⣿⣗⢵⣫⢾⣫⢞⣎⢧⢝⢿⡿⣪⡫⣞⢾⢾⢝⡼⡳⣽⣾⢺⣿⣻⣟⣿⣽⣿⣟⣿⣿⣻⣾⣿⣿⡟⣼⡯⣯⣳⣿⣿⣽⣿⣽⣿⣽⣾⣿⣿⢿⡿⣿⡿⣯⣿⣯
+// ⣿⢸⣏⡿⣞⣯⡷⣿⣸⢿⢸⣫⣗⣯⢷⣿⣟⣿⡿⣿⢸⡇⣿⣟⣿⣽⣾⡿⣟⡧⣿⡿⣷⣿⣿⣿⣿⢿⠿⣟⢿⣷⣻⣷⢣⣳⢽⣾⣻⡪⣏⣧⣷⡯⣷⣧⣳⣹⢹⢕⡽⣝⣽⡾⣇⣿⣿⣿⢿⣿⣽⣿⣻⣽⣿⣯⣷⣿⣗⡯⡿⡽⣺⣿⣽⣿⣾⡿⣯⣿⣿⣻⣾⣿⣿⣿⢿⣿⣟⣿
+// ⢿⣸⢳⣻⡯⣷⣟⣷⣺⢿⣸⢐⢬⡦⣕⠬⣙⠻⣟⣿⣏⣯⢺⣽⡯⣿⢾⣟⣿⣗⣿⢿⣻⣷⢿⡮⣾⢿⣻⣽⣾⡎⣮⣟⡜⡮⣻⢺⢪⣺⣾⣿⣿⢹⣿⣷⢵⡟⣞⣯⢓⣿⣸⣟⣷⢽⣿⣾⣿⣿⣽⡿⣿⡿⣟⣯⣿⣿⢱⣟⣯⣳⣿⣿⢿⣽⣾⣿⣿⢿⣯⣿⡿⣟⣿⣽⣿⣟⣿⣿
+// ⣿⢽⣸⣯⣟⣷⣻⣞⢾⢯⢾⢌⣿⡿⡱⣱⡲⢭⡊⡗⡗⣾⣝⠖⣿⢽⣻⡽⣷⡳⣟⣟⣯⡿⣯⢹⣻⢼⢿⣻⣽⢜⣽⣯⣷⢽⡬⣷⠿⣽⣿⣽⣾⢹⣿⡟⡾⡵⣿⢝⣽⢸⡞⣾⣺⠽⣿⣽⣿⣾⡿⣿⡿⣿⣿⣿⢿⡮⣟⡾⣇⣿⣿⣾⣿⣿⢿⣽⣾⣿⣿⣻⣿⣿⣿⣟⣯⣿⣿⣾
+// ⣽⡽⣸⣾⣳⣟⣾⣳⣻⡽⡽⣧⢺⣇⣻⣽⢌⢆⢵⡅⢝⣷⣿⣿⣵⣝⣯⡻⢽⡸⣯⢿⣺⣯⢿⢨⡟⢼⣻⣽⣻⢔⣿⣺⣽⢿⢸⣿⡏⣿⢾⣯⡯⣟⣯⢗⣷⣻⢏⣾⢯⡮⣞⢼⣺⡣⣿⣿⣯⣷⣿⣿⣿⡿⣿⣾⡿⣹⣽⢽⣺⣿⣷⣿⣿⣽⣿⣿⣿⢿⣻⣿⣯⣷⣿⡿⣿⣻⣯⣿
+// ⣿⢘⣿⣺⣗⣿⣺⣗⢗⡯⣿⣿⣯⣷⡜⡾⣷⢷⡟⣊⡧⣿⣿⣽⣾⣿⣾⣟⣯⣿⣺⣭⣗⢯⣻⢼⣹⡽⡽⣾⠽⣝⣞⣷⣻⡝⡽⣾⢺⣟⣯⣷⣏⣿⢯⢻⡾⣝⣾⢯⣾⣯⢺⣍⢾⣝⢽⣿⣽⣿⢿⣽⣾⣿⣿⣯⣫⣟⡞⣽⣟⣷⣿⣷⣿⣯⣿⣾⣿⢿⣿⣯⣿⣟⣿⡿⣿⡿⣿⣻
+// ⣿⡎⣷⣟⣾⣳⣟⣾⠸⣏⣿⣾⣿⣾⣟⣾⣴⣵⣼⣿⡿⣿⣟⣿⣟⣿⣽⣿⢿⣽⣿⣷⡟⢟⢚⢝⢚⡚⡽⡺⣽⣇⣛⢮⢭⣣⡹⡯⣿⣺⢷⢷⢳⢯⢏⣾⢟⣾⢳⢟⡻⣿⣏⢾⡱⣗⣝⣿⣽⣿⡿⣿⡿⣿⣾⣣⡷⡯⣽⣿⡿⣿⣽⣾⣿⣽⣿⣽⣾⣿⣿⣽⣿⣽⣿⡿⣟⣿⣿⣿
+// ⣾⡯⣷⣟⣾⣳⣟⡾⡵⣫⢻⣯⣿⣾⣿⢿⣻⣿⢿⣻⣿⣿⢿⣟⣿⣿⣟⣿⣿⡿⣿⣮⣾⠏⣔⣗⢝⢖⡦⡅⡕⢕⣻⢇⡿⣺⣽⣞⡮⣛⣽⡟⡾⣝⣓⡷⣛⡼⣮⢯⢯⢺⣿⣪⢧⣻⣪⢾⣿⣯⣿⣿⡿⣿⡫⣾⡝⣽⣿⣟⣿⣿⢿⣿⣻⣽⣿⣻⣿⣟⣯⣿⣯⣿⣟⣿⣿⡿⣿⣽
+// ⢿⡯⣷⣻⣞⡷⣯⡇⣿⢐⢯⣿⡿⣟⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣯⣿⣿⣽⣿⣿⢿⣿⡑⣷⣳⢔⢥⣿⡪⣺⡧⡪⢪⡯⣿⣻⢾⢝⣗⢧⣧⣫⡣⣪⢾⣳⡿⣿⣻⣽⢸⣿⣷⣹⡜⣮⣳⢽⣿⣽⣾⣿⢏⣾⢗⣾⣿⣿⣻⣯⣿⣿⣟⣿⣟⣿⣻⣽⣿⣟⣿⣽⣿⣻⣯⣷⣿⣿⣿
+// ⣿⣯⢳⣟⣾⣻⡽⡇⣿⠸⣮⢺⣿⣿⣿⣯⣷⣿⣯⣷⣿⣿⣿⣟⣷⣿⢿⣽⣿⣻⣾⣿⣻⢷⣕⢟⠿⠽⣚⣼⡿⡹⣸⢸⢽⡾⣽⣟⡷⡵⡝⠿⠯⡯⣮⢯⣻⢽⢯⡷⣓⣿⣿⡿⣷⡕⡗⣗⣗⣻⣿⣻⣟⡽⣮⡿⣿⣿⣽⣿⣟⣯⣷⣿⣿⢿⣻⣿⡿⣟⣿⣟⣿⣟⣿⡿⣟⣿⣿⣽
+// ⠽⣿⢸⣟⣾⣳⡿⡇⣿⢨⣺⣷⣽⣿⣽⣿⣟⣿⣟⣿⣿⡿⣿⢽⡯⣟⡿⣯⣟⣯⡿⣽⣽⣻⢮⣗⡿⣟⣯⣟⣾⣻⡽⣝⢷⣿⣻⣳⢽⡹⣺⣻⣝⣮⡯⣻⣽⣿⣽⣺⢹⣿⣻⣿⢿⣻⣎⢗⢗⣧⡻⣯⡺⣵⣿⢿⣟⣯⣿⣯⣿⣿⢿⣟⣿⣿⡿⣟⣿⣿⣿⣻⣿⣻⣿⢿⣿⣿⣻⣽
+// ⣟⡷⣝⢷⡯⣷⣟⡧⣻⢼⡪⣿⣿⣻⣿⣽⣿⣟⣿⡿⣯⣷⣻⢯⣟⣯⣟⡷⣯⢷⣟⣷⣻⣞⡿⣽⣽⣻⣞⣷⣻⢾⡝⡾⢽⢺⣪⣞⣮⢳⢽⣺⢸⣿⡿⣮⣞⢾⣳⢭⣿⣿⢿⣻⣿⣿⣿⣯⡧⡳⣳⣕⢿⣿⢿⣿⢿⣿⣿⣻⣽⣾⣿⣿⡿⣷⣿⣿⣿⣿⣾⣿⣟⣿⡿⣿⢿⣾⣿⣿
+// ⣾⣟⣗⢿⡽⡷⣯⡇⡯⣞⡯⡸⣿⣻⣿⣯⣿⣿⡻⠿⡿⣷⣻⣽⣻⣞⡷⣟⣯⣟⣷⣻⣞⡷⣟⣟⣾⣳⣟⣾⢽⠫⣪⢯⣯⢿⣺⣞⢎⣯⢺⣕⣿⣿⣿⢿⣿⣷⡷⣿⣟⣿⣿⣿⢿⣷⢟⣫⡾⣫⣮⡺⣕⣟⢿⡿⣿⣿⣽⣿⡿⣿⣿⣻⣿⢿⣻⣯⣿⣾⣿⣾⣿⢿⣿⡿⣿⣿⣻⣾
+// ⢿⣯⡗⣿⢽⡿⣽⡇⣯⢻⣡⣶⡚⢿⣻⣽⣿⣾⡌⣏⢮⡪⡚⣷⣻⣞⣯⣟⣷⣻⣞⡷⣯⢿⣽⡽⣞⣷⡻⣎⢷⡕⣯⢿⡽⡯⡷⡽⣺⡳⡱⡧⣿⣿⣾⣿⣿⣾⣿⢿⣻⣯⣷⢟⣯⣳⣻⢝⣾⣿⡿⣷⣇⡧⡳⡽⢿⣯⣿⣯⣿⣿⣯⣿⡿⣿⡿⣿⣻⣯⣿⣾⣿⢿⣻⣿⣟⣯⣿⣿
+// ⣿⢿⣻⢼⢯⣟⡷⣧⢯⣺⢾⣽⣻⡎⢿⣿⣿⣻⣿⡜⡎⣎⣗⣷⣻⣞⣷⣻⣞⡷⣯⢿⣽⣻⢾⡽⡯⣳⢵⢯⡗⣽⡽⣯⢿⢽⢽⣱⡗⣽⢽⣸⣿⣷⣿⣷⣿⢿⣾⡿⣟⢯⢾⡽⡾⡽⣼⣿⣿⣿⣻⣿⡿⣿⣯⡺⡳⣝⢿⣿⣽⣷⣿⡿⣿⡿⣿⣿⡿⣿⣻⣽⣾⣿⣿⣿⣻⣿⢿⣻
+// ⣿⣿⣿⣞⡽⡾⣽⣳⡳⣽⣻⣞⣷⣻⢔⠹⢿⣻⣿⢽⡯⣿⢽⣞⣷⣻⣞⡷⣯⢿⢽⡻⢞⢝⢭⣺⢾⡽⣽⣳⢽⢯⡿⡽⡽⡽⣱⣺⣱⢇⡯⣿⣟⣯⣷⣿⢿⡟⣯⢞⢵⣽⣳⢿⢝⣽⣿⣟⣿⣾⣿⣻⣿⢿⡿⣿⣾⢪⢷⡹⣿⣽⣷⣿⣿⡿⣿⣷⣿⣿⣿⡿⣿⣿⣻⣽⣿⣻⣿⣿
+// ⣷⣿⣷⡗⣯⢟⣗⡯⡎⣷⣻⣞⣷⣻⢧⠣⡑⢝⠯⠿⠽⡫⢟⢓⢛⠪⡓⢍⢢⢣⡱⣨⣶⣟⣯⣿⡽⣯⡷⣳⣟⡯⡯⡯⡯⣓⣞⢖⡷⢵⢳⣿⣿⢿⣿⣻⣫⣞⡷⡯⣟⣾⣺⣫⣿⣿⣯⣿⣿⣽⣾⣿⢿⣿⢿⣟⣿⣷⣣⢻⣚⢿⣯⣿⣷⣿⣿⣷⣿⣿⣾⣿⢿⣻⣿⣟⣿⣟⣯⣷
+// ⣿⣿⣽⣷⢹⣽⣺⢽⢕⣯⡷⣟⣾⡽⡿⣕⡌⡢⡑⢅⠕⡌⣢⡱⣌⡮⣮⣞⡾⣪⣾⡿⣷⣟⣷⢯⣿⣝⣮⢷⢯⢯⢯⠯⣝⡼⣪⣗⢧⢟⣵⡻⣿⡿⣟⣽⣺⡾⣵⣟⣟⣞⢧⣿⣿⣾⣿⣯⣿⣟⣯⣿⣿⣿⡿⣿⣟⣿⣷⣹⢼⢝⣿⣿⣽⣿⣾⣿⣷⣿⣷⣿⣿⣿⣿⣻⣿⣻⣿⣿
+// ⣾⣿⣽⡿⡸⣺⣺⢽⢸⣞⣯⣟⣷⣻⢿⡽⣗⣷⢯⣷⣻⡽⣗⣿⢽⡯⣷⢯⣾⣿⣟⣿⣻⡾⣯⢿⡳⡾⡽⡽⡽⡽⣝⢝⡮⣽⡳⢧⣛⣞⡮⣯⢽⡿⣳⢯⣾⢽⣿⣾⣯⡯⣾⣿⣷⣿⣾⣿⣽⡿⣟⣿⣽⣾⣿⡿⣟⣿⣻⣧⢳⢝⡞⣿⣽⣷⣿⣾⣿⣾⣿⣾⣿⣾⣿⣻⣽⣿⣯⣿
+// ⣿⣽⡿⣳⣿⢱⢯⣻⡸⣮⡳⣿⣺⣽⢯⡿⣽⢾⣻⡾⣽⢯⡿⣽⢯⣟⢧⣿⣿⣯⣿⣟⣯⣿⢟⣵⣟⡯⡯⡯⡯⣯⢺⣝⣾⢽⠵⣫⣾⡳⡯⣗⡷⡕⣿⣹⡏⣿⣳⣟⣷⢻⣿⡿⣾⣟⣷⣿⣟⣿⣿⣿⢿⣿⣽⣿⣿⣿⡿⣿⡽⣕⢽⢻⣿⣯⣿⣷⣿⣷⣿⣾⣿⣾⡿⣿⣟⣯⣿⣟
+// ⣿⡿⢇⣿⣿⣝⣽⡺⣇⣿⣯⢳⡿⣞⣿⢽⣻⡯⣯⡿⣽⢯⡿⣽⢯⣵⣿⣿⣿⣽⣿⣻⣿⣫⢾⣳⢗⡯⡯⣯⢳⢵⢏⢞⣎⣯⣾⣻⢾⡽⡯⣗⡯⣷⢹⢼⣺⣟⡾⣽⢮⣿⡿⣿⡿⣿⢿⣟⣿⡿⣷⣿⣿⡿⣯⣿⣾⡿⣿⡿⣇⢷⡹⣇⣿⣯⣿⣾⣿⣷⡿⣿⣾⡿⣿⣿⣻⣿⢿⣿
+// ⣾⣿⢲⡱⣟⣿⣜⣞⣗⢿⣿⣿⢽⣻⣾⣻⡽⣯⢯⣟⡽⡯⡻⢽⣺⣿⣿⣿⣯⣿⣯⣿⢵⣽⣻⣺⢽⢽⢝⡞⣞⡽⣮⢷⣻⢾⣳⣟⡯⡿⡽⣳⢟⢾⢝⣺⢵⡯⣿⢽⣱⣿⣿⣟⣿⣿⢿⣿⣟⣿⣿⣻⣾⣿⡿⣿⣽⣿⣿⣻⣿⣱⢹⣳⢹⣿⣯⣿⣾⣷⣿⣿⣷⣿⣿⣟⣿⣻⣿⡿
+// ⣿⡯⣾⣿⣮⣫⡿⣮⢞⢽⣿⣻⣿⣿⣾⢿⣿⣿⣿⢿⣿⣿⡟⣽⣿⣿⣿⣯⣿⣽⡿⣪⣟⣞⣞⡮⡯⣳⣽⢾⣯⡿⣯⢿⣽⣽⢾⡳⡟⢷⠻⡗⣯⢮⣫⢺⢽⡽⣽⡳⣿⡿⣷⣿⣿⣻⣿⣟⣿⣟⣯⣿⣿⣯⣿⣿⢿⣽⣾⣿⣿⢜⡮⡯⣺⣿⣯⣿⣿⣽⣿⢷⣿⡿⣷⣿⣿⡿⣿⡿

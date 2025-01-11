@@ -14,9 +14,11 @@
 #include <qboxlayout.h>
 #include <qcolor.h>
 #include <qicon.h>
+#include <qlistwidget.h>
 #include <qmovie.h>
 #include <qpushbutton.h>
 #include <qsize.h>
+#include <qtextedit.h>
 #include <qurl.h>
 #include <qwidget.h>
 #include <qwindowdefs.h>
@@ -25,7 +27,8 @@
 #include <spdlog/spdlog.h>
 #include <webkit2/webkit2.h>
 
-PlaybackControlsLayout::PlaybackControlsLayout(QWidget *parent) {
+PlaybackControlsLayout::PlaybackControlsLayout(QWidget *parent)
+    : QHBoxLayout(parent) {
   play_pause = new QPushButton(parent);
   skip = new QPushButton(parent);
   stop = new QPushButton(parent);
@@ -46,10 +49,6 @@ PlaybackControlsLayout::PlaybackControlsLayout(QWidget *parent) {
   addWidget(play_pause);
   addWidget(skip);
   addWidget(stop);
-
-  if (parent) {
-    setParent(parent);
-  }
 }
 
 CoverArtLabel::CoverArtLabel(QWidget *parent) : QLabel(parent) {
@@ -105,17 +104,8 @@ void CoverArtLabel::on_cover_art_change(std::vector<unsigned char> art) {
 
 TrackAnalysisInfo::TrackAnalysisInfo(QWidget *parent) : QWidget(parent) {}
 
-TrackListFilter::TrackListFilter(QWidget *parent) {
+TrackListFilter::TrackListFilter(QWidget *parent) : QTextEdit(parent) {
   setMaximumHeight(30);
-
-  if (parent) {
-    setParent(parent);
-  }
 }
 
-TrackList::TrackList(QWidget *parent) {
-
-  if (parent) {
-    setParent(parent);
-  }
-}
+TrackList::TrackList(QWidget *parent) : QListWidget(parent) {}

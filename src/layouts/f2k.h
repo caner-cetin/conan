@@ -57,20 +57,3 @@ public:
 
 private:
 };
-
-class Foobar2k : public QObject {
-  Q_OBJECT
-
-public:
-  Foobar2k(QWidget *parent);
-
-private:
-  QTimer *player_state_poll;
-  QVBoxLayout player_layout;
-  QLabel cover_art;
-  PlaybackControlsLayout *playback_controls;
-
-Q_SIGNALS:
-  void playback_state_changed(bool ch);
-  void active_track_changed(bool ch);
-};

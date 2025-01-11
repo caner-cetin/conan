@@ -4,6 +4,8 @@
 #include <QWidget>
 #include <memory>
 #include <qcontainerfwd.h>
+#include <qtimer.h>
+#include <spdlog/spdlog.h>
 #include <webkit2/webkit2.h>
 
 class WebKitWidget : public QWidget {
@@ -14,7 +16,7 @@ public:
   ~WebKitWidget();
 
   bool initialize();
-  void loadURL(const QString &url);
+  void loadURL(const QString &url, bool retry = true);
   void loadHTML(const QString &html, const QString &baseURL = "about:blank");
 
 protected:
@@ -28,5 +30,19 @@ private:
                               void *data);
   void updateWebViewSize();
   void requestSnapshot();
+
+  int load_uri_retry_count = 0;
+  static constexpr int MAX_RETRIES = 5;
+  QTimer *retry_timer = nullptr;
+  QString pending_url;
+  std::shared_ptr<spdlog::logger> logger;
+
+  static void load_changed_cb(WebKitWebView *web_view,
+                              WebKitLoadEvent load_event, gpointer user_data);
+  void scheduleRetry();
+
+  void initLogger() {
+    logger = spdlog::default_logger()->clone("WebKitWidget");
+  }
 };
 #endif

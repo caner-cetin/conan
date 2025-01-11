@@ -48,6 +48,7 @@ find_package(glslang REQUIRED)   # GLSL compiler
 find_package(Protobuf REQUIRED)  # Protocol Buffers
 find_package(PkgConfig REQUIRED) # Package configuration tool
 find_package(fmt REQUIRED)       # String formatting library
+find_package(CURL REQUIRED) 
 
 
 
@@ -62,10 +63,13 @@ pkg_check_modules(X11 QUIET IMPORTED_TARGET x11)
 
 file(GLOB SOURCES 
 ${CMAKE_SOURCE_DIR}/src/main.cpp 
-${CMAKE_SOURCE_DIR}/src/server.cpp 
+${CMAKE_SOURCE_DIR}/src/conan_util.cpp 
 ${CMAKE_SOURCE_DIR}/src/include/assets/*.cpp 
 ${CMAKE_SOURCE_DIR}/src/layouts/*.cpp
-${CMAKE_SOURCE_DIR}/src/workers/*.cpp
+${CMAKE_SOURCE_DIR}/src/workers/beef.cpp
+${CMAKE_SOURCE_DIR}/src/workers/analysis.cpp
+${CMAKE_SOURCE_DIR}/src/workers/server.cpp
+
 )
 
 link_directories(${GTK_LIBRARY_DIRS})
@@ -102,6 +106,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/layouts
     ${CMAKE_SOURCE_DIR}/src/include
     ${CMAKE_SOURCE_DIR}/src/include/assets
+    ${CURL_INCLUDE_DIR}
     ${Crow_INCLUDE_DIRS}
     ${X11_INCLUDE_DIRS}                    # X11 headers
     ${VDPAU_INCLUDE_DIRS}                 # VDPAU headers
@@ -210,6 +215,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     -Wl,--no-whole-archive
     -Wl,--pop-state
 
+    ${CURL_LIBRARIES}
     Qt6::Core
     Qt6::Widgets
     Qt6::Svg

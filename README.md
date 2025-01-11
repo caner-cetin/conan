@@ -9,6 +9,7 @@ smol music recommendation engine based on local library folders.
 - [notes](#notes)
 - [features](#features)
 - [download](#download)
+  - [foobar2000](#foobar2000)
 - [compile yourself](#compile-yourself)
   - [try package repos first](#try-package-repos-first)
   - [use clang](#use-clang)
@@ -19,7 +20,6 @@ smol music recommendation engine based on local library folders.
   - [why dont you use qtwebengine](#why-dont-you-use-qtwebengine)
   - [why did you create this project](#why-did-you-create-this-project)
 - [problems, todos, and many more rants](#problems-todos-and-many-more-rants)
-  - [player info](#player-info)
   - [windows and arm toolchains (mingw, etc) does not work.](#windows-and-arm-toolchains-mingw-etc-does-not-work)
 - [closing thoughts](#closing-thoughts)
 
@@ -28,7 +28,12 @@ this branch still requires a lot of work thanks to being in C++ space, check the
 ## features
 ...
 ## download
+### foobar2000
+install [beefweb from here](https://github.com/hyperblast/beefweb/releases/tag/v0.8). 
+then from f2k, files -> settings -> tools -> beefweb remote control -> tick allow remote connections and set port.
+
 ...
+
 ## compile yourself
 trust me, this is not worth your time. most depndencies are compiled from source, and it will take so much time from you, i am talking about several hours. if you follow these steps, and for uncertain reasons you decide to compile this application, you are my best friend from now on. 
 
@@ -151,14 +156,44 @@ this means that, they are bringing LLVM symbols along with the library and it wi
     frame #6: 0x00007fffb8305c3c libc.so.6`__clone3 at clone3.S:78
 ```
 
-you will always encounter errors like this, even if you dont use the tensorflow, linking this library will be enough to segmentation fault everything, because, this megacorporation called Google, is using a mastermind engineering product Bazel, and they are bringing all the custom built libLLVM symbols to your application. if you stay below the 2.13,  you will still use the GCC built library, you wont need to build the entire library all over again, and, our app will work just fine anyways. 
+you will always encounter errors like this, even if you dont use the tensorflow, linking this library will be enough to segmentation fault everything, because, Google is using a mastermind engineering product Bazel, and they are bringing all the custom built libLLVM symbols to your application. if you stay below the 2.13,  you will still use the GCC built library, you wont need to build the entire library all over again, and, our app will work just fine anyways. 
 
 you cannot isolate the llvm symbols brought by tensorflow, it is borderline impossible to isolate your own LLVM symbols coming from clang, and tensorflow's LLVM symbols when built by them.
 
 *it is dumb*
 *it is really cursed*
 
-yes it is. nothing built by google has made a flying fucking sense for the last 15 years. this consumed two whole weeks and I could finish the application with this effort. but. yea. move on now.
+yes it is. nothing built by google has made a sense for the last 15 years.
+
+some more rant from my twitter thread (heavily censored, because, uh.)
+
+
+> day 14 progress: 
+> still cannot run [talking about the project].
+> maybe we will manage to run our app on day 15 who knows?
+
+>  it is not just me, even debian maintainers are so sick of whatever the fuck google is doing
+https://wiki.debian.org/MachineLearning/Tensorflow
+
+
+> gentoo removed the support for tensorflow because the effort required to compile and build this absolute dumpster fire is absolutely not worth it 
+https://bugs.gentoo.org/922374
+
+> good news is I can actually compile and run my app. bad news is, if I interact with the webkit window, it crashes again, because, for some reason Google decides to bring all the LLVM with it. Bazel is not using the system libraries when you compile a library, Bazel is using random downloaded libraries so when you use a pre-built library there is no way in hell to know what actually got used when that library was built. So, yes, I can compile and run this application, but as soon as I interact with incompatible library, segfault.
+
+> there is no documentation for bazel. there is no use case for bazel. it is built from google for google to give you headaches because that's what google does, their sole existence reason is to give you headaches and aneursyms
+
+> at one point who thought it is a good idea to bring the entirety of LLVM with the library so that you can be incompatible with anything else that's not built with that specific LLVM used in bazel? we don't even know which LLVM they used because Bazel does not follow standards.
+
+> *no comment*
+https://github.com/kubernetes/kubernetes/pull/99561
+
+> every library in the ecosystem is compatible with each other, let it be built with CLang or GCC, only tensorflow is not compatible with anything because they bring the libLLVM 18 symbols alongside with the libraries thanks to bazel, and that symbols are not compatible with anyone
+
+> i need rest good afternoon 
+
+thread over, and then at day 15 I fixed the issue
+
 
 </details>
 
@@ -457,14 +492,6 @@ This project is born with the jealousy of infinite music queueing algorithm in A
 ## problems, todos, and many more rants
 
 issues never ends...
-
-### player info
-
-despite whatever the fuck I do
-
-[alt](./static/i1.png)
-
-background is pitch black, and at first initialization up next is set to something weird. 
 
 ### windows and arm toolchains (mingw, etc) does not work. 
 

@@ -31,6 +31,7 @@ WebKitWidget::WebKitWidget(QWidget *parent, const char *initial_uri)
   setAttribute(Qt::WA_TranslucentBackground);
   setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   setFixedSize(400, 210);
+  initLogger();
   initialize();
 }
 
@@ -44,27 +45,25 @@ WebKitWidget::~WebKitWidget() {
 }
 
 bool WebKitWidget::initialize() {
-  spdlog::debug("Initializing WebKitWidget");
-  spdlog::debug("Environment variables set: LIBGL_ALWAYS_SOFTWARE={}, "
+  logger->debug("Initializing WebKitWidget");
+  logger->debug("Environment variables set: LIBGL_ALWAYS_SOFTWARE={}, "
                 "GALLIUM_DRIVER={}, QT_QPA_PLATFORM={}",
                 getenv("LIBGL_ALWAYS_SOFTWARE"), getenv("GALLIUM_DRIVER"),
                 getenv("QT_QPA_PLATFORM"));
-  setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1", 1);
 
   // Ensure GTK is initialized
   if (!gtk_init_check(nullptr, nullptr)) {
-    spdlog::error("Failed to initialize GTK");
+    logger->error("Failed to initialize GTK");
     return false;
   }
-  qDebug() << "Initialized GTK";
 
   // Create the WebView
   d->webView = WEBKIT_WEB_VIEW(g_object_ref(webkit_web_view_new()));
   if (!d->webView || !WEBKIT_IS_WEB_VIEW(d->webView)) {
-    spdlog::error("Failed to create WebKit view");
+    logger->error("Failed to create WebKit view");
     return false;
   }
-  spdlog::debug("WebKit WebView created successfully");
+  logger->debug("WebKit WebView created successfully");
 
   // Create a GTK container for the WebView
   d->gtkContainer = gtk_fixed_new();
@@ -85,7 +84,7 @@ bool WebKitWidget::initialize() {
   // Get the native window ID (WId) from the GTK widget
   GdkWindow *gdkWindow = gtk_widget_get_window(d->gtkContainer);
   if (!gdkWindow) {
-    spdlog::error("Failed to get GDK window from GTK widget");
+    logger->error("Failed to get GDK window from GTK widget");
     return false;
   }
 
@@ -96,34 +95,34 @@ bool WebKitWidget::initialize() {
   // Embed the GTK container into the QWidget
   QWindow *window = QWindow::fromWinId(wid);
   if (!window) {
-    spdlog::error("Failed to create QWindow from WId");
+    logger->error("Failed to create QWindow from WId");
     return false;
   }
 
   QWidget *container = QWidget::createWindowContainer(window, this);
   if (!container) {
-    spdlog::error("Failed to create container widget");
+    logger->error("Failed to create container widget");
     return false;
   }
   container->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   container->setStyleSheet("background: transparent;");
   container->setGeometry(0, 0, width(), height());
   container->setFixedSize(width(), height());
-  spdlog::debug("Container created with geometry: {}x{} at ({},{})",
+  logger->debug("Container created with geometry: {}x{} at ({},{})",
                 container->width(), container->height(), container->x(),
                 container->y());
-
+  container->setUpdatesEnabled(true);
   // Configure WebKit settings
   WebKitSettings *settings = webkit_web_view_get_settings(d->webView);
   webkit_settings_set_enable_javascript(settings, TRUE);
-  webkit_settings_set_enable_webgl(settings, FALSE);
+  webkit_settings_set_enable_webgl(settings, TRUE);
   webkit_settings_set_hardware_acceleration_policy(
-      settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
+      settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS);
 
   GdkRGBA background = {0.0, 0.0, 0.0, 0.0};
   webkit_web_view_set_background_color(d->webView, &background);
-  gtk_widget_set_app_paintable(GTK_WIDGET(d->webView), TRUE);
-  spdlog::debug("Configured WebKit settings");
+  gtk_widget_set_app_paintable(GTK_WIDGET(d->webView), FALSE);
+  logger->debug("Configured WebKit settings");
   updateWebViewSize();
   return true;
 }
@@ -136,7 +135,7 @@ void WebKitWidget::updateWebViewSize() {
   int w = std::max(width(), 1) * devicePixelRatio();  // Prevent 0 width
   int h = std::max(height(), 1) * devicePixelRatio(); // Prevent 0 height
 
-  spdlog::debug("Updating size: widget dimensions {}x{}, devicePixelRatio: {}",
+  logger->debug("Updating size: widget dimensions {}x{}, devicePixelRatio: {}",
                 width(), height(), devicePixelRatio());
 
   if (w != d->width || h != d->height) {
@@ -148,7 +147,7 @@ void WebKitWidget::updateWebViewSize() {
     if (QWidget *container = findChild<QWidget *>()) {
       container->setMinimumSize(width(), height());
       container->resize(width(), height());
-      spdlog::debug("Container dimensions after resize: {}x{}",
+      logger->debug("Container dimensions after resize: {}x{}",
                     container->width(), container->height());
     }
   }
@@ -157,25 +156,40 @@ void WebKitWidget::updateWebViewSize() {
 void WebKitWidget::resizeEvent(QResizeEvent *event) {
   // Prevent invalid resize events
   if (event->size().width() <= 0 || event->size().height() <= 0) {
-    spdlog::warn("Ignoring invalid resize event: {}x{}", event->size().width(),
+    logger->warn("Ignoring invalid resize event: {}x{}", event->size().width(),
                  event->size().height());
     return; // Skip the invalid resize
   }
 
-  spdlog::debug("Resize event triggered - old: {}x{}, new: {}x{}",
+  logger->debug("Resize event triggered - old: {}x{}, new: {}x{}",
                 event->oldSize().width(), event->oldSize().height(),
                 event->size().width(), event->size().height());
 
   QWidget::resizeEvent(event);
   updateWebViewSize();
 }
-void WebKitWidget::loadURL(const QString &url) {
+void WebKitWidget::loadURL(const QString &url, bool retry) {
   if (url.isEmpty()) {
-    spdlog::warn("url is empty, cannot load");
+    logger->warn("url is empty, cannot load");
     return;
   }
-  spdlog::debug("navigating to {}", url.toStdString());
+
+  // Reset retry count when loading a new URL
+  if (url != pending_url) {
+    load_uri_retry_count = 0;
+    if (retry_timer) {
+      retry_timer->stop();
+    }
+  }
+
+  logger->debug("navigating to {}", url.toStdString());
+
   if (d->webView) {
+    pending_url = url;
+    if (retry) {
+      g_signal_connect(d->webView, "load-changed", G_CALLBACK(load_changed_cb),
+                       this);
+    }
     webkit_web_view_load_uri(d->webView, url.toStdString().c_str());
   }
 }
@@ -186,3 +200,133 @@ void WebKitWidget::loadHTML(const QString &html, const QString &baseURL) {
                               baseURL.toUtf8().constData());
   }
 }
+
+void WebKitWidget::load_changed_cb(WebKitWebView *web_view,
+                                   WebKitLoadEvent load_event,
+                                   gpointer user_data) {
+  WebKitWidget *self = static_cast<WebKitWidget *>(user_data);
+  auto log = self->logger;
+  switch (load_event) {
+  case WEBKIT_LOAD_STARTED: {
+    log->debug("Load started - establishing connection");
+    break;
+  }
+
+  case WEBKIT_LOAD_REDIRECTED: {
+    log->debug("Load redirected - following server redirect");
+    // Reset retry count on redirect as it's a new URL
+    self->load_uri_retry_count = 0;
+    break;
+  }
+
+  case WEBKIT_LOAD_COMMITTED: {
+    log->debug("Load committed - receiving content");
+    WebKitWebResource *resource = webkit_web_view_get_main_resource(web_view);
+    if (resource) {
+      WebKitURIResponse *response = webkit_web_resource_get_response(resource);
+      const gchar *uri = webkit_uri_response_get_uri(response);
+      guint status_code = webkit_uri_response_get_status_code(response);
+      log->debug("Resource committed with status code: {} for URI: {}",
+                 status_code, uri);
+    }
+    break;
+  }
+
+  case WEBKIT_LOAD_FINISHED: {
+    WebKitWebResource *resource = webkit_web_view_get_main_resource(web_view);
+    if (!resource) {
+      log->error("Load finished but no main resource available");
+      self->scheduleRetry();
+      break;
+    }
+
+    WebKitURIResponse *response = webkit_web_resource_get_response(resource);
+    if (!response) {
+      log->error("Load finished but no response available");
+      self->scheduleRetry();
+      break;
+    }
+
+    const gchar *uri = webkit_uri_response_get_uri(response);
+    guint status_code = webkit_uri_response_get_status_code(response);
+
+    log->debug("Load finished with status code: {} for URI: {}", status_code,
+               uri);
+
+    // Check if status code indicates a failure that we should retry
+    if ((status_code >= 500 || status_code == 0) &&
+        self->load_uri_retry_count < MAX_RETRIES) {
+      log->warn("Server error (status {}), attempting retry", status_code);
+      self->scheduleRetry();
+    } else if (status_code >= 200 && status_code < 400) {
+      log->debug("Load completed successfully");
+      self->load_uri_retry_count = 0;
+      self->pending_url.clear();
+      if (self->retry_timer) {
+        self->retry_timer->stop();
+      }
+    } else {
+      log->error("Load failed with non-retryable status: {}", status_code);
+      self->load_uri_retry_count = 0;
+      self->pending_url.clear();
+      if (self->retry_timer) {
+        self->retry_timer->stop();
+      }
+    }
+    break;
+  }
+  }
+}
+
+void WebKitWidget::scheduleRetry() {
+  load_uri_retry_count++;
+  logger->warn("Scheduling retry attempt {}/{}", load_uri_retry_count,
+               MAX_RETRIES);
+
+  if (!retry_timer) {
+    retry_timer = new QTimer(this);
+    retry_timer->setSingleShot(true);
+    connect(retry_timer, &QTimer::timeout, this, [this]() {
+      if (!pending_url.isEmpty()) {
+        logger->debug("Executing retry for URL: {}", pending_url.toStdString());
+        webkit_web_view_load_uri(d->webView, pending_url.toStdString().c_str());
+      }
+    });
+  }
+
+  retry_timer->start(1000); // 1 second delay
+}
+
+// ⠀⠀⠀⠀⠀⢀⠄⠄⠀⢀⠎⠀⠠⢀⡴⢣⠗⠀⠀⡌⠀⢀⡞⠁⡌⠀⠀⠀⠀⠀⡀⠀⠈⠢⡄⢠⠐⣀⢂⡑⢆⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⡠⢡⠊⠀⢀⡞⠠⠒⠉⠔⢠⠇⠀⠀⡔⢀⠄⣾⠁⠀⡇⠀⠄⠂⡐⠠⠈⢦⠁⠄⠙⣆⠒⡄⢢⠒⡄⠳⡀⠀⠡⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⡠⢠⡆⢀⠄⣸⠀⠀⠀⡰⢀⡟⠀⠀⢰⠇⡌⣸⡅⠐⡀⡇⢈⠘⣆⣀⣁⠦⣄⢣⢎⡱⢤⢳⡌⡱⡜⣠⢃⠱⡄⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⢰⢒⠋⡠⠀⢠⠇⠀⠀⠀⠄⣼⡇⠀⠀⡛⢠⢁⣧⢃⣰⢲⡗⣎⡛⣼⣵⡪⡕⣎⢧⢎⡱⢎⡲⢹⡴⢱⡆⡜⢢⠹⣤⡀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⢠⣓⡎⠠⠁⠀⣼⠀⠀⠀⡘⢀⡿⠆⠀⣀⠥⣎⢸⣽⢪⡱⢻⣿⡸⣵⡲⣹⣷⡝⡴⣋⢧⡝⢦⡙⢦⡹⣧⢹⡔⢣⠜⣳⡌⢦⢄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⡰⣸⠃⠀⠀⢠⡟⠀⠀⢀⡃⣸⢷⡇⢪⡑⢎⡧⣿⡎⣇⠳⣽⣿⡱⢯⣷⣧⢻⣿⣧⡝⢮⠽⣖⡹⢦⡙⣮⢷⣛⠦⡙⢼⣿⠸⣈⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⢀⢳⢹⠀⠂⠀⢸⡇⠀⣠⢴⡊⣿⣾⠡⢇⡙⣆⡷⣿⡟⣬⢓⣿⡇⢻⡝⣾⡌⢳⡞⣿⣿⣮⢹⡹⢧⡧⡹⢬⣯⢿⣧⡙⠦⣿⣧⢷⢨⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠈⡌⢸⠀⠆⠀⣿⢱⡉⢖⣼⠱⣿⣿⢸⡡⢏⣼⡧⣿⢳⡬⣳⣿⡇⠘⣾⣹⣳⠀⠙⢮⢿⢿⣧⣯⡙⡷⣝⠲⢮⢿⡻⣿⡥⣻⣿⢸⣉⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⢼⠃⢼⠀⢇⣼⣿⢠⢛⡟⣘⠧⣇⣿⢤⠻⣜⣸⡇⣿⢧⣸⣧⣿⠀⠀⠸⣇⣿⡇⠀⠀⠻⢣⡘⢿⣇⣻⠻⣟⡜⢿⣻⡻⣿⣻⣿⣸⢠⢟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⣸⠀⣾⣘⢧⢺⣿⢎⢧⡟⣧⢫⣿⣿⢮⡝⡦⡽⡗⣿⡺⣼⢾⣏⠂⠀⠀⠙⣮⣻⡀⠀⠀⠀⠙⢗⡹⠻⣷⣝⣿⣦⢿⣿⣾⡿⣿⡿⣇⢾⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⢹⢲⣽⡞⣬⢻⣟⢮⢾⣓⣯⢳⣿⣿⢺⣜⡳⡵⣏⣿⣗⣯⣿⠃⠀⠀⣀⣀⣬⢷⠿⡄⠀⠀⠀⠀⠈⠙⠶⣻⡻⣿⣷⣵⠟⣿⣼⢿⡇⠞⣃⠀⠀⠀⠀⠠⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⢸⡳⢾⣟⣵⢻⣿⣎⢿⣧⢻⡽⣿⣿⣏⢾⣱⢏⡿⣿⣿⣿⡇⠒⠉⠁⠀⠀⠀⠀⠙⢽⢄⠀⠀⠀⠀⠀⠀⠀⠈⠊⠙⠿⣻⡾⢿⣿⣿⣺⣧⡤⠄⠒⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⢸⡟⣽⣿⡺⣽⣿⢮⣻⣾⣹⣿⣟⣿⣯⢷⣫⢞⣿⢿⣿⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠱⡄⡀⠀⠀⠀⠀⢀⠀⢀⣤⣴⣤⠼⣿⣯⠍⢹⡕⢦⢄⡀⠀⠀⠀⠀⠀⠀⠀⣀⡴⠁
+// ⠸⣿⣻⣿⣽⢾⣿⣏⣿⣞⡷⣯⡿⢿⣟⣮⢷⣫⢾⣿⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⡄⠀⠀⠀⠀⠉⠂⠢⠄⠀⣠⠞⠋⠁⠀⠀⢸⣿⢻⠄⠘⡇⠀⠈⠈⠚⠒⠶⠠⠰⠖⠛⠁⠀⠀
+// ⠀⢻⣯⣿⣾⢻⣿⣞⣿⣽⣻⣽⠃⡀⣘⡿⣞⣵⣫⣿⡇⢀⣀⣤⡶⠾⠟⠛⠓⠒⠦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣹⡎⠐⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠸⣿⣿⣯⢻⣿⣞⣿⣿⣳⡿⠀⢇⠀⢟⡿⣖⡧⢿⣿⠀⠊⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⣿⣧⠣⠀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⢹⣿⣯⢻⣿⡞⣿⣯⢷⣷⡀⠘⠄⠼⣿⡽⣞⢯⣿⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⠜⠀⠀⡗⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠈⣿⣿⣹⣿⡽⣿⣏⣿⣿⣿⣄⠣⠈⣫⣿⢞⣳⢞⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠰⣿⣟⣷⡆⠀⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⢸⣿⣹⣿⣾⡟⣾⣿⣿⣿⣿⣷⣦⣈⣻⣯⡗⣯⢷⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⡿⡾⣿⡆⠀⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠘⣿⣽⣿⡿⣹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣞⣿⣎⡟⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡠⠄⡀⢦⣖⠆⠀⠀⠀⢀⣾⣿⣳⡇⠹⣿⣀⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⡿⣼⣿⢳⣿⣿⣿⡿⢿⣻⠿⣟⢯⢿⡽⣟⣾⡝⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠕⠒⠉⠁⢂⠏⠀⠀⠀⣠⣾⣿⢯⣿⡇⠃⠘⢿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⢠⢓⣿⣳⡿⣹⠋⣥⣾⠯⠉⠛⣼⢫⡞⣷⡻⢽⣿⢺⡕⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠈⠀⠀⠀⢠⣼⣿⣿⡿⣽⣿⠇⠀⠀⣸⠿⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⡸⣸⡽⢿⠜⢁⠞⠉⠐⠀⠀⠀⢭⡳⣝⢶⢻⢈⢿⣯⢧⠀⠀⠀⠑⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⣠⡼⣏⡟⡿⣿⡗⣿⣿⡄⠀⠀⣿⠀⠙⢦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⢀⠀⢐⡽⢋⢤⠊⢠⠊⠀⠀⠀⠀⠀⠀⣺⡱⣟⠮⡏⠀⠐⢻⣿⠆⠀⠀⠀⠀⠀⠀⠀⢸⣶⡦⣤⡤⣞⣵⡻⣼⣹⢳⣿⣹⡿⢿⡇⠀⢠⡟⠀⠀⠀⠈⠢⢀⡀⠀⠀⠀⠀⡀⠀⠀
+// ⠀⢠⡎⡔⢡⡞⠀⠊⠀⠀⠀⠀⠀⠀⢠⡏⣷⢩⣾⣧⠀⠀⠀⢹⣷⠀⠀⠀⠀⠀⠀⠀⣾⣧⡟⢳⣿⢱⡞⢳⣧⡏⣷⣿⣼⢸⡇⠑⣴⢺⠁⠀⠀⠀⠀⠀⠀⠀⠉⠐⠊⠁⠀⠀⠀
+// ⡞⢃⡄⡓⡌⣱⡘⣍⠀⠀⠀⠀⠀⠀⣮⣝⣶⣿⣿⣿⣷⣤⣀⠀⢿⡇⠀⠀⠀⠀⠀⠀⡛⢾⣽⣟⡾⢯⣽⢻⣼⡹⠃⣿⢼⠀⢀⠀⠀⠙⠬⢆⣀⠀⠀⠀⠀⠀⠀⠀⠠⠀⠀⠀⠀
+// ⡜⢦⡘⢥⠒⡤⠱⡈⢄⠀⠀⢁⠂⢠⡿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣤⣤⣄⣀⣤⣤⣷⣿⣿⣿⣿⣏⡾⣏⡶⡇⣼⢿⡾⠀⠠⠘⢶⣤⢄⠰⡟⠒⠴⠠⠀⠀⠀⠀⠁⠀⠀⠀⠀
+// ⠊⠁⠙⠀⠛⢶⢣⠽⣄⠳⣄⢀⢪⠏⠳⣻⣿⣿⣿⣿⣿⣿⣽⣿⣿⣾⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣯⣷⡿⣽⠈⣷⡇⠐⡀⠚⠹⠉⡼⠃⠀⢀⠀⠃⠀⠀⠀⠀⠀⠀⠀⡯
+// ⠀⠀⠀⠀⠀⠀⠈⠳⡜⣢⡈⢗⡎⠀⠀⣷⡹⣿⣿⣟⣻⢿⣿⢿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡽⡄⠸⣽⡀⠄⠠⣠⡼⠀⡐⢀⠂⠜⠀⠀⠀⠀⠀⠀⠀⣚⡯
+// ⡤⢤⣤⡤⣤⡤⢤⡤⢼⡑⣞⣲⠤⡀⠀⡏⠳⡭⢿⣿⣿⡿⣿⠿⣿⢯⣿⣿⠿⡿⠿⡿⢿⠿⣿⢿⣻⣟⣿⣿⣿⣿⣿⣳⡀⠹⣷⡈⢸⠟⠀⡐⢌⠦⣼⢄⠀⠀⢀⠀⠒⠒⠀⣿⠁
+// ⣝⡫⡶⠝⠒⠩⠷⣲⢌⡙⠢⠻⠵⣮⣑⠤⡀⠈⢻⢿⣧⣷⣧⣿⣼⢸⣿⣶⣯⣷⣿⣿⣿⣿⣿⣿⢿⡿⣿⣿⢿⣿⣿⣿⣳⢡⠚⣿⣮⣄⠂⡁⢮⣿⢳⣯⢄⠂⠀⠀⠂⠀⠀⠀⠀
+// ⠊⠀⢀⠠⢀⠀⠀⠀⠉⠙⠦⢄⡀⠀⠉⠳⢮⣑⠄⡙⢿⣿⣹⣏⡯⠘⣸⠯⣽⣭⣻⣽⣿⣷⣿⣾⣽⣾⣿⣿⣿⣿⣿⣿⣯⣧⢫⡿⠙⢻⢽⣲⠿⢾⠛⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠐⡈⢀⠂⠄⡈⠐⠠⢀⠀⠄⠀⢡⡀⠩⣻⡆⠉⢻⣦⣉⠻⣿⣿⠃⣡⣿⣿⠿⡿⢿⢿⣛⡟⣻⢻⣝⣯⣿⣳⣯⣾⣿⣿⣿⣗⣿⣽⡀⢧⢲⣯⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀

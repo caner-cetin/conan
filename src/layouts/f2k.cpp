@@ -14,6 +14,7 @@
 #include <qboxlayout.h>
 #include <qcolor.h>
 #include <qicon.h>
+#include <qmovie.h>
 #include <qpushbutton.h>
 #include <qsize.h>
 #include <qurl.h>
@@ -21,6 +22,7 @@
 #include <qwindowdefs.h>
 
 #include <gtk/gtk.h>
+#include <spdlog/spdlog.h>
 #include <webkit2/webkit2.h>
 
 PlaybackControlsLayout::PlaybackControlsLayout(QWidget *parent) {
@@ -50,7 +52,7 @@ PlaybackControlsLayout::PlaybackControlsLayout(QWidget *parent) {
   }
 }
 
-CoverArtLabel::CoverArtLabel(QWidget *parent) {
+CoverArtLabel::CoverArtLabel(QWidget *parent) : QLabel(parent) {
   setFixedSize(QSize(180, 180));
   setAlignment(Qt::AlignCenter);
   setScaledContents(false);
@@ -67,10 +69,6 @@ CoverArtLabel::CoverArtLabel(QWidget *parent) {
   placeholder->start();
 
   setMovie(placeholder);
-
-  if (parent) {
-    setParent(parent);
-  }
 }
 
 CoverArtLabel::~CoverArtLabel() {
@@ -81,6 +79,27 @@ CoverArtLabel::~CoverArtLabel() {
   if (placeholder_buffer) {
     placeholder_buffer->close();
     delete placeholder_buffer;
+  }
+}
+
+void CoverArtLabel::on_cover_art_change(std::vector<unsigned char> art) {
+  if (art.size() > 0) {
+    if (placeholder->state() == QMovie::Running) {
+      placeholder->stop();
+    }
+    clear();
+    QImage img;
+    if (!img.loadFromData(art.data(), art.size())) {
+      spdlog::error("cannot load cover art");
+      return;
+    }
+    QPixmap pix = QPixmap::fromImage(img);
+    setPixmap(
+        pix.scaled(size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+  } else {
+    clear();
+    setMovie(placeholder);
+    placeholder->start();
   }
 }
 

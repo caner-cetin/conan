@@ -22,6 +22,8 @@ public:
   }
 public Q_SLOTS:
   void update_player_state();
+Q_SIGNALS:
+  void cover_art_changed(std::vector<unsigned char> data);
 
 private:
   std::mutex mutex;
@@ -33,8 +35,8 @@ private:
   std::unique_ptr<Track> up_next;
 
   void broadcast_player_state();
-  void broadcast_up_next();
-  void broadcast_currently_playing();
+  void broadcast_up_next(bool clear = false);
+  void broadcast_currently_playing(bool clear = false);
   void broadcast_all_properties();
   void fetch_and_broadcast_current_and_up_next_track();
 };

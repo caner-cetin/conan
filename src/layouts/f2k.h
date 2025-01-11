@@ -33,6 +33,9 @@ public:
   CoverArtLabel(QWidget *parent = nullptr);
   ~CoverArtLabel();
 
+public Q_SLOTS:
+  void on_cover_art_change(std::vector<unsigned char> art);
+
 private:
   QMovie *placeholder;
   QBuffer *placeholder_buffer;

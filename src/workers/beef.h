@@ -24,7 +24,8 @@ static std::vector<std::string> TrackQueryColumns = {
     "%artist%]",      "%title%]",       "%album%]", "%length%]",
     "%tracknumber%]", "%totaltracks%]", "%path%]",
 };
-std::unique_ptr<Track> columns_to_track(std::vector<std::string> columns);
+std::unique_ptr<Track>
+columns_to_track(const std::vector<std::string> &columns);
 
 enum PlaybackState { Stopped, Playing, Paused, Invalid = -1 };
 
@@ -82,6 +83,8 @@ public:
 
   NLOHMANN_DEFINE_TYPE_INTRUSIVE(ActiveItem, playlistId, playlistIndex, index,
                                  position, duration, columns);
+
+  std::unique_ptr<std::vector<unsigned char>> artwork();
 };
 
 class Volume {

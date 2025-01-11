@@ -2,6 +2,7 @@
 #include "webkit_widget.h"
 #include <cstdlib>
 #include <qboxlayout.h>
+#include <qnamespace.h>
 #include <qobject.h>
 #define WINDOW_MIN_W 1700
 #define WINDOW_MIN_H 900
@@ -74,6 +75,8 @@ int main(int argc, char **argv) {
   mainLayout->addLayout(contentLayout);
 
   WebKitWidget *TrackPlayerInfo = new WebKitWidget(nullptr, nullptr);
+  HttpWorker *server = new HttpWorker(&app);
+
   // Left side: Main content area
   {
     QVBoxLayout *leftPanel = new QVBoxLayout();
@@ -94,6 +97,9 @@ int main(int argc, char **argv) {
         playerSection->addLayout(playerLeft);
 
         CoverArtLabel *coverArt = new CoverArtLabel();
+        QObject::connect(server, &HttpWorker::cover_art_changed, coverArt,
+                         &CoverArtLabel::on_cover_art_change,
+                         Qt::QueuedConnection);
         PlaybackControlsLayout *playbackControls = new PlaybackControlsLayout();
 
         playerLeft->addWidget(coverArt);
@@ -119,7 +125,6 @@ int main(int argc, char **argv) {
   }
 
   // Initialize HTTP server
-  HttpWorker *server = new HttpWorker(&app);
   server->start();
   TrackPlayerInfo->loadURL("http://localhost:31311");
   QObject::connect(&app, &QApplication::aboutToQuit, server,

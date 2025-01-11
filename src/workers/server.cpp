@@ -7,6 +7,7 @@
 #include "crow/http_response.h"
 #include "workers/beef.h"
 #include <fmt/format.h>
+#include <memory>
 #include <mutex>
 #include <qmutex.h>
 #include <qnamespace.h>
@@ -74,21 +75,23 @@ void HttpWorker::update_player_state() {
         current_player_state->playbackState) {
       broadcast_player_state();
     }
-
+    auto new_track = columns_to_track(new_player_state->activeItem.columns);
+    if (new_track && currently_playing) {
+      bool not_same_artist = new_track->artist != currently_playing->artist;
+      bool not_same_title = new_track->title != currently_playing->title;
+      if (not_same_artist || not_same_title) {
+        fetch_and_broadcast_current_and_up_next_track();
+      }
+    } else if (!currently_playing) {
+      fetch_and_broadcast_current_and_up_next_track();
+    } else if (!new_track) {
+      broadcast_currently_playing(true);
+      broadcast_up_next(true);
+    }
     current_player_state = std::move(new_player_state);
 
   } else if (!current_player_state) {
     current_player_state = std::move(new_player_state);
-  }
-  auto new_track = columns_to_track(new_player_state->activeItem.columns);
-  if (currently_playing) {
-    if (new_track->artist != currently_playing->artist &&
-        new_track->title != currently_playing->title) {
-      fetch_and_broadcast_current_and_up_next_track(); 
-    }
-    currently_playing = std::move(new_track);
-  } else if (!currently_playing) {
-    currently_playing = std::move(new_track);
   }
 }
 
@@ -101,10 +104,23 @@ void HttpWorker::broadcast_all_properties() {
 void HttpWorker::fetch_and_broadcast_current_and_up_next_track() {
   auto queue = BeefWeb::PlaylistItems::current_and_next_track(
       &current_player_state->activeItem);
-  currently_playing = std::move(queue.first);
-  up_next = std::move(queue.second);
-  broadcast_currently_playing();
-  broadcast_up_next();
+  if (queue.first) {
+    currently_playing = std::move(queue.first);
+    broadcast_currently_playing();
+    auto cover_art = current_player_state->activeItem.artwork();
+    if (cover_art) {
+      cover_art_changed(*cover_art);
+    }
+  } else {
+    broadcast_currently_playing(true);
+    cover_art_changed({});
+  }
+  if (queue.second) {
+    up_next = std::move(queue.second);
+    broadcast_up_next();
+  } else {
+    broadcast_up_next(true);
+  }
 }
 void HttpWorker::broadcast_player_state() {
   if (current_player_state && client) {
@@ -120,28 +136,26 @@ void HttpWorker::broadcast_player_state() {
   }
 }
 
-void HttpWorker::broadcast_currently_playing() {
-  if (current_player_state && client && currently_playing) {
-    json message = {{{"UpdateTitle", fmt::format("<div id='Title'>{}</div>",
-                                                 currently_playing->title)},
-                     {"UpdateAlbum", fmt::format("<div id='Album'>{}</div>",
-                                                 currently_playing->album)},
-                     {"hx-swap-oob", "true"}}};
+void HttpWorker::broadcast_currently_playing(bool clear) {
+  if (current_player_state && client && (currently_playing || clear == true)) {
+    json message = {
+        {{"UpdateTitle", fmt::format("<div id='Title'>{}</div>",
+                                     clear ? "" : currently_playing->title)},
+         {"UpdateAlbum", fmt::format("<div id='Album'>{}</div>",
+                                     clear ? "" : currently_playing->album)},
+         {"hx-swap-oob", "true"}}};
     std::string message_str = message.dump();
     client->send_text(message_str);
-  } else {
-    spdlog::warn("cannot stream currenlt playing due to current player state "
-                 "or client being null");
   }
 }
 
-void HttpWorker::broadcast_up_next() {
-  if (current_player_state && client && up_next) {
+void HttpWorker::broadcast_up_next(bool clear) {
+  if (current_player_state && client && (up_next || clear == true)) {
     json message = {
-        {{"UpdateUpNextTitle",
-          fmt::format("<div id='UpNextTitle'>{}</div>", up_next->title)},
-         {"UpdateUpNextAlbum",
-          fmt::format("<div id='UpNextAlbum'>{}</div>", up_next->album)},
+        {{"UpdateUpNextTitle", fmt::format("<div id='UpNextTitle'>{}</div>",
+                                           clear ? "" : up_next->title)},
+         {"UpdateUpNextAlbum", fmt::format("<div id='UpNextAlbum'>{}</div>",
+                                           clear ? "" : up_next->album)},
          {"hx-swap-oob", "true"}}};
     std::string message_str = message.dump();
     client->send_text(message_str);

@@ -62,7 +62,8 @@ MusicAnalyzer::MusicAnalyzer(QObject *parent) : QObject(parent) {
   // TensorflowPredictEffnetDiscogs takes only filenames as model files.
   // i cant feed byte data into it directly.
   //
-  // todo: this is different on windows http://msdn.microsoft.com/en-us/library/aa363875%28VS.85%29.aspx
+  // todo: this is different on windows
+  // http://msdn.microsoft.com/en-us/library/aa363875%28VS.85%29.aspx
   char discogs_effnet_b64_filename_tmpl[] = "/tmp/conan_models.XXXXXX";
   int fd = mkstemp(discogs_effnet_b64_filename_tmpl);
 
@@ -73,8 +74,22 @@ MusicAnalyzer::MusicAnalyzer(QObject *parent) : QObject(parent) {
         Resources::DiscogsEffnetBS64::original_size);
   close(fd);
   discogs_effnet_b64_filename = discogs_effnet_b64_filename_tmpl;
-  spdlog::debug("discogs effnet b64 is saved to: {}", discogs_effnet_b64_filename);
+  spdlog::debug("discogs effnet b64 is saved to: {}",
+                discogs_effnet_b64_filename); 
+  f                  
 }
+
+MusicAnalyzer::~MusicAnalyzer() {
+  delete audio_loader;
+  delete dc_remover;
+  delete equalizer;
+  delete band_pass;
+  delete moving_average;
+  unlink(discogs_effnet_b64_filename);
+
+  essentia::shutdown();
+}
+
 
 void MusicAnalyzer::analyze_directory(QString directory) {
   auto files = find_audio_files(directory.toStdString());
@@ -350,17 +365,6 @@ void MusicAnalyzer::reset_all_algorithms() {
   dynamic_complexity->reset();
   onset_rate->reset();
 }
-
-MusicAnalyzer::~MusicAnalyzer() {
-  delete audio_loader;
-  delete dc_remover;
-  delete equalizer;
-  delete band_pass;
-  delete moving_average;
-
-  essentia::shutdown();
-}
-
 // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⢟⣡⣶⣿⣿⣿⣿⣶⣮⣙⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⣩⣽⣶⣶⢰⡆⣮⣙⠿⣿⣿⣿⣿⣿⣿⣿⣿
 // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⣱⣿⣷⣬⡛⢿⣿⣿⣿⣿⣿⣧⡘⡿⢛⣛⣽⣽⣷⣶⣶⣮⣭⣍⡛⠛⡋⢉⠙⠿⠿⠿⠿⠿⠿⢣⣾⣿⣿⢿⣿⡇⡇⢻⣿⣷⠘⢿⣿⣿⣿⣹⣿⣿
 // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠰⣛⣻⠿⠿⣿⣶⣍⢻⣿⣿⣿⣿⣷⡸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣤⣩⣶⣾⣿⣿⣿⣟⣒⣒⣉⣙⠾⣿⣿⡇⡇⢸⣿⣿⢰⡸⣿⠹⡚⣿⣿⣿

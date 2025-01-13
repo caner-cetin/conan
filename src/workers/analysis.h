@@ -231,8 +231,8 @@ private:
 
   Algorithm *frameCutter;
   Algorithm *window;
-  Algorithm *tf_predict_effnet_discogs;
   const char *discogs_effnet_b64_filename;
+  Algorithm *discogs_effnet_b64;
 };
 
 struct SimilarTrack {

@@ -68,6 +68,9 @@ file(GLOB SOURCES
 ${CMAKE_SOURCE_DIR}/src/main.cpp 
 ${CMAKE_SOURCE_DIR}/src/conan_util.cpp 
 ${CMAKE_SOURCE_DIR}/src/include/assets/*.cpp 
+${CMAKE_SOURCE_DIR}/src/include/assets/icons/*.cpp 
+${CMAKE_SOURCE_DIR}/src/include/assets/models/*.cpp 
+${CMAKE_SOURCE_DIR}/src/include/assets/templates/*.cpp 
 ${CMAKE_SOURCE_DIR}/src/layouts/*.cpp
 ${CMAKE_SOURCE_DIR}/src/workers/db.cpp
 ${CMAKE_SOURCE_DIR}/src/workers/beef.cpp

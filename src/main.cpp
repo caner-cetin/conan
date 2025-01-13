@@ -1,4 +1,5 @@
 
+#include "no_cover_art.h"
 #include "webkit_widget.h"
 #include "workers/db.h"
 #include <cstdlib>
@@ -6,6 +7,7 @@
 #include <qnamespace.h>
 #include <qobject.h>
 #include <qpushbutton.h>
+#include <qstringview.h>
 #define WINDOW_MIN_W 1700
 #define WINDOW_MIN_H 900
 
@@ -58,7 +60,7 @@ int main(int argc, char **argv) {
   auto favicon = hex_to_icon(Resources::Favicon::decompress().data(),
                              Resources::Favicon::original_size, "ICO");
   app.setWindowIcon(favicon);
-  app.setStyleSheet(Resources::Stylesheet::string);
+  app.setStyleSheet(QString::fromLocal8Bit(Resources::Stylesheet::decompress()));
 
   // Main window setup
   QMainWindow window;

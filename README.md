@@ -1,13 +1,12 @@
 ## conan
-smol music recommendation engine based on local library folders.
+smol music recommendation engine based on local library folders. (**WORK IN PROGRESS**)
 
 ![alt text](./static/ui.png)
 
-*ui is not final*
+*ui is not final, screenshot from python branch*
 
 - [conan](#conan)
 - [how does the recommendation algorithm works?](#how-does-the-recommendation-algorithm-works)
-- [notes](#notes)
 - [features](#features)
 - [download](#download)
   - [foobar2000](#foobar2000)
@@ -28,16 +27,14 @@ smol music recommendation engine based on local library folders.
 
 i didnt do the math, [someone else did](https://www.researchgate.net/publication/351863177_Content-based_Music_Recommendation_System), and I tried my best to explain how it works with examples [in this header file](src/workers/analysis.h).
 
-## notes
-this branch still requires a lot of work thanks to being in C++ space, check the main branch if you want to know what this app is in its core.
 ## features
-...
+WIP
 ## download
 ### foobar2000
 install [beefweb from here](https://github.com/hyperblast/beefweb/releases/tag/v0.8). 
 then from f2k, files -> settings -> tools -> beefweb remote control -> tick allow remote connections and set port.
 
-...
+settings WIP
 
 ## compile yourself
 trust me, this is not worth your time. most depndencies are compiled from source, and it will take so much time from you, i am talking about several hours. if you follow these steps, and for uncertain reasons you decide to compile this application, you are my best friend from now on. 
@@ -410,15 +407,20 @@ sudo make install
 
 ### things may help you in development
 
-everything is pretty straightforward, factory default QT and other libraries. i will add "watch out for this" if i have any of them:
-
 <details>
 
 <summary>generate binary headers for embedding assets</summary>
 
 ```bash
-assets/asset_converter.py assets/no_cover_art.gif NoCoverArtGif > src/include/assets/no_cover_art.h
+generate_assets.py assets/no_cover_art.gif NoCoverArtGif > src/include/assets/no_cover_art.h
 ```
+
+to generate everything
+```bash
+chmod +x generate_assets.sh
+./generate_assets.py
+```
+
 
 
 ```cpp

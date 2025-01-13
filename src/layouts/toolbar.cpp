@@ -1,9 +1,11 @@
 #include "toolbar.h"
 #include "workers/analysis.h"
 #include <QFileDialog>
+#include <cstring>
 #include <qfiledialog.h>
 #include <qobject.h>
 #include <qpushbutton.h>
+#include <spdlog/spdlog.h>
 
 ToolbarLayout::ToolbarLayout(QObject *parent) {
   connect(select_directory, &QPushButton::clicked, this,
@@ -24,16 +26,19 @@ ToolbarLayout::ToolbarLayout(QObject *parent) {
 }
 
 void ToolbarLayout::on_select_directory(bool checked) {
-  QFileDialog::getExistingDirectory(
-      this->widget(), "Select Music Directory", music_directory,
+  music_directory = QFileDialog::getExistingDirectory(
+      this->widget(), "Select Music Directory", "/home",
       QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+  spdlog::debug("selected directory: {}", music_directory.toStdString());
 }
 
 void ToolbarLayout::on_start_analysis(bool checked) {
-  if (music_directory == "") {
+  if (music_directory == nullptr ||
+      strcmp(music_directory.toStdString().c_str(), "") == 0) {
     return;
   }
-  // analyzer.analyze_directory(music_directory);
+  spdlog::debug("analyzing directory: {}", music_directory.toStdString());
+  analyzer.analyze_directory(music_directory);
 }
 
 void ToolbarLayout::on_stop_analysis(bool checked) {

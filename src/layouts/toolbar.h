@@ -1,11 +1,13 @@
 #ifndef TOOLBAR_H
 #define TOOLBAR_H
 
+#include "workers/analysis.h"
 #include <QtCore/qtmetamacros.h>
 
 #include <QHBoxLayout>
 #include <QObject>
 #include <QPushButton>
+#include <qobject.h>
 
 class ToolbarLayout : public QHBoxLayout {
   Q_OBJECT
@@ -20,7 +22,7 @@ private:
   QPushButton *start_analysis = new QPushButton("Start Analysis");
   QPushButton *stop_analysis = new QPushButton("Stop Analysis");
 
-  // MusicAnalyzer analyzer;
+  MusicAnalyzer analyzer;
 
 public Q_SLOTS:
   void on_select_directory(bool checked = false);

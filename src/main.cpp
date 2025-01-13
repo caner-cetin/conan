@@ -1,5 +1,6 @@
 
 #include "webkit_widget.h"
+#include "workers/db.h"
 #include <cstdlib>
 #include <qboxlayout.h>
 #include <qnamespace.h>
@@ -8,9 +9,9 @@
 #define WINDOW_MIN_W 1700
 #define WINDOW_MIN_H 900
 
+#include "conan_util.h"
 #include <assets/favicon.h>
 #include <assets/stylesheet.h>
-#include <assets/util.h>
 #include <workers/server.h>
 
 #include <layouts/f2k.h>
@@ -24,6 +25,7 @@
 #include <QLabel>
 #include <QMainWindow>
 #include <QPushButton>
+#include <QSettings>
 #include <QString>
 #include <QVBoxLayout>
 #include <essentia/algorithmfactory.h>
@@ -47,17 +49,23 @@ int main(int argc, char **argv) {
 #endif
 
   QApplication app(argc, argv);
+  app.setOrganizationName("cansudev");
+  app.setOrganizationDomain("cansu.dev");
+  app.setApplicationName("Conan");
+  QSettings settings;
 
   // Application setup
-  auto favicon =
-      hex_to_icon(Resources::Favicon::hex, Resources::Favicon::size, "ICO");
+  auto favicon = hex_to_icon(Resources::Favicon::decompress().data(),
+                             Resources::Favicon::original_size, "ICO");
   app.setWindowIcon(favicon);
   app.setStyleSheet(Resources::Stylesheet::string);
 
   // Main window setup
   QMainWindow window;
   window.setWindowTitle("Conan");
+  // no resize for you
   window.setMinimumSize(WINDOW_MIN_W, WINDOW_MIN_H);
+  window.setMaximumSize(WINDOW_MIN_W, WINDOW_MIN_H);
   window.setWindowIcon(favicon);
 
   // Root layout setup

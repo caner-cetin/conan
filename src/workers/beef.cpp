@@ -21,7 +21,7 @@ const char *get_api_url() {
 }
 
 std::unique_ptr<PlayerState::Player> PlayerState::query() {
-  CurlRAII curl;
+  conan_curl curl;
   std::string body;
   curl_easy_setopt(curl, CURLOPT_URL,
                    fmt::format("{}/player?columns={}", get_api_url(),
@@ -45,7 +45,7 @@ PlaylistItems::current_and_next_track(PlayerState::ActiveItem *active_item) {
   if (active_item->playlistId == "") {
     return {nullptr, nullptr};
   }
-  CurlRAII curl;
+  conan_curl curl;
   std::string body;
   std::string target = fmt::format(
       "{}/playlists/{}/items/{}:2?columns={}", get_api_url(),
@@ -87,7 +87,7 @@ PlaylistItems::current_and_next_track(PlayerState::ActiveItem *active_item) {
 }
 
 std::unique_ptr<std::vector<unsigned char>> PlayerState::ActiveItem::artwork() {
-  CurlRAII curl;
+  conan_curl curl;
 
   std::vector<unsigned char> image;
   curl_easy_setopt(curl, CURLOPT_URL,
@@ -134,7 +134,7 @@ columns_to_track(const std::vector<std::string> &columns) {
 }
 
 void BeefWeb::Playback::play_pause_toggle() {
-  CurlRAII curl;
+  conan_curl curl;
   std::string target = fmt::format("{}/player/pause/toggle", get_api_url());
   curl_easy_setopt(curl, CURLOPT_URL, target.c_str());
   curl.set_empty_post_request();
@@ -147,7 +147,7 @@ void BeefWeb::Playback::play_pause_toggle() {
 }
 
 void BeefWeb::Playback::skip() {
-  CurlRAII curl;
+  conan_curl curl;
   curl_easy_setopt(curl, CURLOPT_URL,
                    fmt::format("{}/player/next", get_api_url()).c_str());
   curl.set_empty_post_request();
@@ -160,7 +160,7 @@ void BeefWeb::Playback::skip() {
 }
 
 void BeefWeb::Playback::stop() {
-  CurlRAII curl;
+  conan_curl curl;
   curl_easy_setopt(curl, CURLOPT_URL,
                    fmt::format("{}/player/stop", get_api_url()).c_str());
   curl.set_empty_post_request();

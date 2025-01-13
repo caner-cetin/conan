@@ -1,6 +1,5 @@
 #include "server.h"
 #include "assets/templates/player_info.h"
-#include "assets/util.h"
 #include "conan_util.h"
 #include "crow/app.h"
 #include "crow/common.h"
@@ -40,14 +39,15 @@ void HttpWorker::run() {
           });
 
   CROW_ROUTE(server, "/")
-      .methods(crow::HTTPMethod::GET)(
-          [](const crow::request &req, crow::response &res) {
-            res.add_header("Content-Type", "text/html");
-            res.write(hex_to_string(Resources::PlayerInfoTemplate::hex));
-            auto garbage_split = split(res.body, "</html>");
-            res.body = garbage_split[0] + "</html>";
-            res.end();
-          });
+      .methods(crow::HTTPMethod::GET)([](const crow::request &req,
+                                         crow::response &res) {
+        res.add_header("Content-Type", "text/html");
+        res.write(
+            hex_to_string(Resources::PlayerInfoTemplate::decompress().data()));
+        auto garbage_split = split(res.body, "</html>");
+        res.body = garbage_split[0] + "</html>";
+        res.end();
+      });
   // https://crowcpp.org/master/guides/app/#using-the-app
   // When using run_async(), make sure to use a variable to save the function's
   // output (such as auto _a = app.run_async()). Otherwise the app will run

@@ -6,6 +6,7 @@ smol music recommendation engine based on local library folders.
 *ui is not final*
 
 - [conan](#conan)
+- [how does the recommendation algorithm works?](#how-does-the-recommendation-algorithm-works)
 - [notes](#notes)
 - [features](#features)
 - [download](#download)
@@ -20,8 +21,12 @@ smol music recommendation engine based on local library folders.
   - [why dont you use qtwebengine](#why-dont-you-use-qtwebengine)
   - [why did you create this project](#why-did-you-create-this-project)
 - [problems, todos, and many more rants](#problems-todos-and-many-more-rants)
-  - [windows and arm toolchains (mingw, etc) does not work.](#windows-and-arm-toolchains-mingw-etc-does-not-work)
+  - [windows toolchains (mingw, etc) does not work.](#windows-toolchains-mingw-etc-does-not-work)
 - [closing thoughts](#closing-thoughts)
+
+## how does the recommendation algorithm works?
+
+i didnt do the math, [someone else did](https://www.researchgate.net/publication/351863177_Content-based_Music_Recommendation_System), and I tried my best to explain how it works with examples [in this header file](src/workers/analysis.h).
 
 ## notes
 this branch still requires a lot of work thanks to being in C++ space, check the main branch if you want to know what this app is in its core.
@@ -39,7 +44,7 @@ trust me, this is not worth your time. most depndencies are compiled from source
 
 ### try package repos first
 
-for libraries that marked as optional, try installing them from your package repository first. if they dont work, compile yourself.
+for QT and webkitgtk, try installing them from your package repository first. if they dont work, compile yourself.
 
 ### use clang
 export the folloving envs
@@ -78,10 +83,12 @@ sudo apt-get install \
     libzmq3-dev \
     libpwquality-dev \
     libmemcached-dev \
-    libjemalloc-dev
+    libjemalloc-dev \
+    libutfcpp-dev \
+    libssl-dev \
     uwsgi \
     zlib1g-dev \
-    ruby-full \
+    ruby-full \ 
     ccache
 ```
 
@@ -386,6 +393,21 @@ sudo rm -rf /usr/include/crow
 
 </details>
 
+<details>
+
+<summary>taglib</summary>
+
+```bash
+wget https://taglib.org/releases/taglib-2.0.2.tar.gz
+tar -xf taglib-2.0.2.tar.gz
+cd taglib-2.0.2
+cmake -DCMAKE_BUILD_TYPE=Release . 
+make
+sudo make install
+```
+
+</details>
+
 ### things may help you in development
 
 everything is pretty straightforward, factory default QT and other libraries. i will add "watch out for this" if i have any of them:
@@ -493,22 +515,9 @@ This project is born with the jealousy of infinite music queueing algorithm in A
 
 issues never ends...
 
-### windows and arm toolchains (mingw, etc) does not work. 
+### windows toolchains (mingw, etc) does not work. 
 
-need to rebuild the incompatible libraries in both windows and mac.  for example, when configured with `GCC 13-win32 x86_64-w64-mingw32` kit:
-
-```
-[cmake] CMake Error at /usr/share/cmake-3.28/Modules/FindPackageHandleStandardArgs.cmake:230 (message):
-[cmake]   Could NOT find ZLIB (missing: ZLIB_LIBRARY) (found version "1.3")
-[cmake] Call Stack (most recent call first):
-[cmake]   /usr/share/cmake-3.28/Modules/FindPackageHandleStandardArgs.cmake:600 (_FPHSA_FAILURE_MESSAGE)
-[cmake]   /usr/share/cmake-3.28/Modules/FindZLIB.cmake:199 (FIND_PACKAGE_HANDLE_STANDARD_ARGS)
-[cmake]   /usr/share/cmake-3.28/Modules/CMakeFindDependencyMacro.cmake:76 (find_package)
-[cmake]   /usr/lib/cmake/Crow/CrowConfig.cmake:42 (find_dependency)
-[cmake]   CMakeLists.txt:34 (find_package)
-```
-
-so we cannot even configure the CMake with other kits right now. both `Clang 19.1.6 x86_64-pc-linux-gnu` and `GCC 13.3.0 x86_64-pc-linux-gnu` works for Linux, I will sort out something for both Win and OSX after all the compiling pain (see above for tensorflow disaster) for Linux ends.
+makefiles in https://github.com/mxe/mxe will be used later to compile for windows
 
 ## closing thoughts
 

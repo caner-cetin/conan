@@ -51,7 +51,8 @@ find_package(Protobuf REQUIRED)  # Protocol Buffers
 find_package(PkgConfig REQUIRED) # Package configuration tool
 find_package(fmt REQUIRED)       # String formatting library
 find_package(CURL REQUIRED) 
-
+find_package(TAGLIB REQUIRED)
+find_package(SQLite3 REQUIRED)
 
 
 # Use pkg-config to find additional libraries
@@ -68,6 +69,7 @@ ${CMAKE_SOURCE_DIR}/src/main.cpp
 ${CMAKE_SOURCE_DIR}/src/conan_util.cpp 
 ${CMAKE_SOURCE_DIR}/src/include/assets/*.cpp 
 ${CMAKE_SOURCE_DIR}/src/layouts/*.cpp
+${CMAKE_SOURCE_DIR}/src/workers/db.cpp
 ${CMAKE_SOURCE_DIR}/src/workers/beef.cpp
 ${CMAKE_SOURCE_DIR}/src/workers/analysis.cpp
 ${CMAKE_SOURCE_DIR}/src/workers/server.cpp
@@ -106,6 +108,7 @@ set(TENSORFLOW_VENDOR_DIR   ${CMAKE_SOURCE_DIR}/src/vendor/tensorflow)
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/layouts
+    ${CMAKE_SOURCE_DIR}/src/workers
     ${CMAKE_SOURCE_DIR}/src/include
     ${CMAKE_SOURCE_DIR}/src/include/assets
     ${CURL_INCLUDE_DIR}
@@ -143,7 +146,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${FFMPEG_VENDOR_DIR}/libpostproc
     ${FFMPEG_VENDOR_DIR}/libswresample
     ${FFMPEG_VENDOR_DIR}/libswscale
-    ${LLVM_INCLUDE_DIRS}
+    ${SQLite3_INCLUDE_DIRS}
+    ${TAGLIB_INCLUDE_DIRS}
 )
 
 
@@ -240,6 +244,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ${LIBSWRESAMPLE_LIBRARY}
     ${LIBSWSCALE_LIBRARY}
     ${LIBAVUTIL_LIBRARY}
+
+    ${TAGLIB_LIBRARY}
     
     samplerate
     ${CHROMAPRINT_LIBRARIES}
@@ -263,6 +269,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     pthread
     m
     rt
+    ssl
+    crypto
+
+    ${SQLite3_LIBRARIES}
 
     # TensorFlow last with symbol isolation
     -Wl,--push-state

@@ -8,3 +8,4 @@ build
 src/vendor
 src/include/crow
 .cache
+src/include/assets

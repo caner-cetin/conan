@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/ws.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.298.0/lucide.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #c3dce5;
+      background: #110c22;
+      width: 400px;
+      height: 210px;
+      padding: 1rem;
+      overflow: hidden;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      font-size: 0.875rem;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      opacity: 0.8;
+    }
+
+    .track-section {
+      border-bottom: 1px solid rgba(195, 220, 229, 0.1);
+      padding-bottom: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .track-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-details {
+      font-size: 0.875rem;
+      opacity: 0.6;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .up-next {
+      font-size: 0.875rem;
+    }
+
+    .up-next-header {
+      opacity: 0.6;
+      margin-bottom: 0.5rem;
+    }
+
+    .up-next-title {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 0.25rem;
+    }
+
+    .playback-playing {
+      opacity: 1;
+    }
+
+    .playback-stopped,
+    .playback-paused {
+      opacity: 0.6;
+    }
+  </style>
+</head>
+
+<body>
+  <div hx-ext="ws" ws-connect="/ws">
+    <div class="player-container">
+      <div class="header">
+        <div class="header-left">
+          <svg width="24" height="24" viewBox="0 0 48 48" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M16.36 4.5c-2.46 4.37-5.14 8.27-6.71 15.35a13.68 13.68 0 0 0 0 6.17c.92 5.44 8.69 12.77 14.35 17.47h0c5.66-4.7 13.43-12 14.35-17.47a13.68 13.68 0 0 0 0-6.17c-1.57-7.08-4.25-11-6.71-15.35l-5 6.94h-5.26ZM13.3 18.87c1.7 0 3.95 1.45 5.7 3.63 2.42 3 3.15 6.4 1.64 7.62s-4.7-.21-7.11-3.2-3.15-6.4-1.64-7.62a2.12 2.12 0 0 1 1.41-.43Zm21.53 0a2.12 2.12 0 0 1 1.41.43c1.51 1.22.78 4.63-1.64 7.62s-5.59 4.42-7.11 3.2-.78-4.63 1.64-7.62c1.76-2.18 4-3.61 5.7-3.63Zm-15.25 18 3.84-4.32a.72.72 0 0 1 .49-.26H24a.8.8 0 0 1 .59.27l3.84 4.32M24 32.28"
+              style="fill:none;stroke:#fff;stroke-linecap:round;stroke-linejoin:round" />
+          </svg>
+          <div id="PlaybackState">zzz...</div>
+        </div>
+      </div>
+
+      <div class="track-section">
+        <div id="Title" class="track-title">play something...</div>
+        <div id="Album" class="track-details"></div>
+      </div>
+
+      <div class="up-next">
+        <div class="up-next-header">Up Next:</div>
+        <div id="UpNextTitle" class="up-next-title"></div>
+        <div id="UpNextAlbum" class="track-details"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // HTMX before swap handler
+    document.body.addEventListener('htmx:beforeSwap', (event) => {
+      event.detail.target.innerHTML = "";
+    });
+
+    // Update playback state class
+    function updatePlaybackState(state) {
+      const stateEl = document.getElementById('PlaybackState');
+      stateEl.className = `playback-${state.toLowerCase()}`;
+      stateEl.textContent = state;
+    }
+  </script>
+</body>
+
+</html>

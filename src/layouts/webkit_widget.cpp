@@ -14,7 +14,7 @@
 #include <qsizepolicy.h>
 #include <qwindow.h>
 #include <string>
-#include <webkit/WebKitSettings.h>
+#include <webkit2/webkit2.h>
 
 struct WebKitWidget::Private {
   WebKitWebView *webView{nullptr};
@@ -51,11 +51,7 @@ bool WebKitWidget::initialize() {
                 getenv("LIBGL_ALWAYS_SOFTWARE"), getenv("GALLIUM_DRIVER"),
                 getenv("QT_QPA_PLATFORM"));
 
-  // Ensure GTK is initialized
-  if (!gtk_init_check(nullptr, nullptr)) {
-    logger->error("Failed to initialize GTK");
-    return false;
-  }
+  gtk_init(nullptr, nullptr);
 
   // Create the WebView
   d->webView = WEBKIT_WEB_VIEW(g_object_ref(webkit_web_view_new()));

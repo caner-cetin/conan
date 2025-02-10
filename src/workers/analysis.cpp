@@ -75,8 +75,7 @@ MusicAnalyzer::MusicAnalyzer(QObject *parent) : QObject(parent) {
   close(fd);
   discogs_effnet_b64_filename = discogs_effnet_b64_filename_tmpl;
   spdlog::debug("discogs effnet b64 is saved to: {}",
-                discogs_effnet_b64_filename); 
-  f                  
+                discogs_effnet_b64_filename);
 }
 
 MusicAnalyzer::~MusicAnalyzer() {
@@ -89,7 +88,6 @@ MusicAnalyzer::~MusicAnalyzer() {
 
   essentia::shutdown();
 }
-
 
 void MusicAnalyzer::analyze_directory(QString directory) {
   auto files = find_audio_files(directory.toStdString());

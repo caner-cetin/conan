@@ -5,7 +5,7 @@ venv
 .idea
 .env
 build
-src/vendor
 src/include/crow
 .cache
 src/include/assets
+Conan.db

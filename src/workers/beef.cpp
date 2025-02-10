@@ -10,6 +10,7 @@
 #include <fmt/format.h>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <numeric>
 #include <spdlog/spdlog.h>
 
 using namespace nlohmann;
@@ -23,10 +24,13 @@ const char *get_api_url() {
 std::unique_ptr<PlayerState::Player> PlayerState::query() {
   conan_curl curl;
   std::string body;
-  curl_easy_setopt(curl, CURLOPT_URL,
-                   fmt::format("{}/player?columns={}", get_api_url(),
-                               fmt::join(TrackQueryColumns, ","))
-                       .c_str());
+  std::string columns = std::accumulate(
+      std::next(TrackQueryColumns.begin()), TrackQueryColumns.end(),
+      TrackQueryColumns[0],
+      [](std::string a, const std::string &b) { return a + "," + b; });
+  curl_easy_setopt(
+      curl, CURLOPT_URL,
+      fmt::format("{}/player?columns={}", get_api_url(), columns).c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
                    CurlWrite_CallbackFunc_StdString);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
@@ -47,11 +51,15 @@ PlaylistItems::current_and_next_track(PlayerState::ActiveItem *active_item) {
   }
   conan_curl curl;
   std::string body;
-  std::string target = fmt::format(
-      "{}/playlists/{}/items/{}:2?columns={}", get_api_url(),
-      active_item->playlistId,                           // playlist id
-      active_item->index == -1 ? 0 : active_item->index, // offset
-      fmt::join(TrackQueryColumns, ",")); // which columns to retrieve
+  std::string columns = std::accumulate(
+      std::next(TrackQueryColumns.begin()), TrackQueryColumns.end(),
+      TrackQueryColumns[0],
+      [](std::string a, const std::string &b) { return a + "," + b; });
+  std::string target =
+      fmt::format("{}/playlists/{}/items/{}:2?columns={}", get_api_url(),
+                  active_item->playlistId, // playlist id
+                  active_item->index == -1 ? 0 : active_item->index, // offset
+                  columns); // which columns to retrieve
   curl_easy_setopt(curl, CURLOPT_URL, target.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
                    CurlWrite_CallbackFunc_StdString);

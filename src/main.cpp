@@ -41,7 +41,6 @@ std::string formatDuration(float duration);
 int main(int argc, char **argv) {
   setenv("LIBGL_ALWAYS_SOFTWARE", "0", 1);
   setenv("GALLIUM_DRIVER", "llvmpipe", 1);
-  setenv("QT_QPA_PLATFORM", "xcb", 1);
 
   qputenv("QT_FATAL_WARNINGS", "1");
 #ifdef NDEBUG
@@ -60,7 +59,8 @@ int main(int argc, char **argv) {
   auto favicon = hex_to_icon(Resources::Favicon::decompress().data(),
                              Resources::Favicon::original_size, "ICO");
   app.setWindowIcon(favicon);
-  app.setStyleSheet(QString::fromLocal8Bit(Resources::Stylesheet::decompress()));
+  app.setStyleSheet(
+      QString::fromLocal8Bit(Resources::Stylesheet::decompress()));
 
   // Main window setup
   QMainWindow window;

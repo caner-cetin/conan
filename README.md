@@ -15,10 +15,6 @@ smol music recommendation engine based on local library folders. (**WORK IN PROG
   - [use clang](#use-clang)
   - [dependencies](#dependencies)
   - [things may help you in development](#things-may-help-you-in-development)
-- [why](#why)
-  - [why do you have `time.h` at include folder](#why-do-you-have-timeh-at-include-folder)
-  - [why dont you use qtwebengine](#why-dont-you-use-qtwebengine)
-  - [why did you create this project](#why-did-you-create-this-project)
 - [problems, todos, and many more rants](#problems-todos-and-many-more-rants)
   - [Gtk-WARNING \*\*: cannot open display on macos](#gtk-warning--cannot-open-display-on-macos)
   - [windows toolchains (mingw, etc) does not work.](#windows-toolchains-mingw-etc-does-not-work)
@@ -38,11 +34,10 @@ then from f2k, files -> settings -> tools -> beefweb remote control -> tick allo
 settings WIP
 
 ## compile yourself
-trust me, this is not worth your time. most depndencies are compiled from source, and it will take so much time from you, i am talking about several hours. if you follow these steps, and for uncertain reasons you decide to compile this application, you are my best friend from now on. 
 
 ### try package repos first
 
-for QT and webkitgtk, try installing them from your package repository first. if they dont work, compile yourself.
+for Ubuntu, try installing the dependencies from your package repository first. if they dont work, compile yourself. for OSX, brew/ports commands are given.
 
 ### use clang
 export the folloving envs
@@ -56,6 +51,9 @@ until we are done
 
 <summary>libs</summary>
 
+**macos**
+not required
+**ubuntu**
 ```bash
 sudo add-apt-repository ppa:oibaf/graphics-drivers
 sudo apt-get update
@@ -113,6 +111,11 @@ for silicon mac, just `brew install libtensorflow`
 
 <summary>qt</summary>
 
+**macos**
+```bash
+brew install qt
+```
+**ubuntu**
 ```bash
 sudo apt install \
     ninja-build \
@@ -196,6 +199,7 @@ grab any version 5 from your package manager
 
 <summary>essentia</summary>
 
+same for all systems, special thanks to the wo80 for the fork. upstream is not compatible with ffmpeg 5 or above, so use the fork.
 ```bash
 git clone https://github.com/wo80/essentia.git
 cd essentia
@@ -212,6 +216,11 @@ sudo python3 waf install
 
 <summary>glslang</summary>
 
+**macos**
+```bash
+brew install glslang
+```
+**ubuntu**
 ```bash
 git clone https://github.com/KhronosGroup/glslang.git
 cd glslang
@@ -228,6 +237,14 @@ sudo ln -s /usr/local/bin/spirv-remap /usr/bin/spirv-remap
 <details>
 
 <summary>gtk & webkitgtk</summary>
+
+**macos**
+```bash
+brew install gtk+3
+sudo port install webkit2-gtk  
+```
+
+**ubuntu**
 
 gtk 3
 ```bash
@@ -363,31 +380,6 @@ if you have any errors upon Debug on CMake extension, also add this
 ```
 
 </details>
-
-## why
-
-### why do you have `time.h` at include folder
-
-ffmpeg's libavcodec library has `time.h` header that clashes with system default `time.h` and if you dont include the system `time.h` before including the libavcodec headers, everything goes boom. 
-
-### why dont you use qtwebengine
-
-i hate it, and my anger is still echoed across the continents. I used QTWebEngine at first, and, due to me being forced to recompile QT, I had to recompile QTWebEngine again. Holy fucking shit. I have no words just check this series of posts.
-
-https://forums.gentoo.org/viewtopic-p-8651147.html?sid=1773648ee041db179d6a8afd6519c3d8 
-https://forums.gentoo.org/viewtopic-p-8799327.html?sid=5a2879e47da1e0b4a9c6ae1941e8eb2a 
-https://forums.gentoo.org/viewtopic-p-8823870.html?sid=373baff52f1adbc6379341f9c056b538 
-https://forums.gentoo.org/viewtopic-p-8786184.html?sid=c5d84f39b263a35504fdd4c0ffbe2c5e 
-https://forums.gentoo.org/viewtopic-p-8584839.html?sid=43aad284c43073a22c37b83ceaa01de8
-
-Compiling QTWebEngine is borderline impossible for my machine. So we just embed a browser into QWindow instead. 
-
-
-
-### why did you create this project
-
-This project is born with the jealousy of infinite music queueing algorithm in Apple Music's stations, I will write a detailed "why" at the end of the project, but at its core, I am just in awe of how good Apple Music stations works, and how I can listen hours of music due to how good all songs blend in with each other. Trying to replicate with small library of mine.
-
 
 ## problems, todos, and many more rants
 

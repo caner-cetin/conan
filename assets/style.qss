@@ -1,7 +1,7 @@
  QMainWindow, QWidget {
      background-color: #110c22;
      color: #c3dce5;
-     font-family: "Centaur", monospace;
+     font-family: Arial, sans-serif;
 }
  QPushButton {
      background-color: #110c22;

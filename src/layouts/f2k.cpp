@@ -29,9 +29,20 @@
 
 PlaybackControlsLayout::PlaybackControlsLayout(QWidget *parent)
     : QHBoxLayout(parent) {
+  setContentsMargins(0, 0, 0, 0);
+  setSpacing(5);
   play_pause = new QPushButton(parent);
+  play_pause->setFixedSize(32, 32);
+  play_pause->setText("▶");
+
   skip = new QPushButton(parent);
+  skip->setFixedSize(32, 32);
+  skip->setText("⏭");
+
   stop = new QPushButton(parent);
+  stop->setFixedSize(32, 32);
+  stop->setText("⏹");
+
   QSize icon_size(24, 24);
   play_pause->setIconSize(icon_size);
   play_pause->setIcon(hex_to_icon(Resources::PlayIcon::decompress().data(),

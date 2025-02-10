@@ -74,7 +74,8 @@ int main(int argc, char **argv) {
   QWidget *centralWidget = new QWidget(&window);
   window.setCentralWidget(centralWidget);
   QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
-
+  mainLayout->setContentsMargins(10, 10, 10, 10);
+  mainLayout->setSpacing(5);
   // Top section: Toolbar and progress bar
   {
     mainLayout->addLayout(new ToolbarLayout(centralWidget));
@@ -83,6 +84,8 @@ int main(int argc, char **argv) {
 
   // Main content area
   QHBoxLayout *contentLayout = new QHBoxLayout();
+  contentLayout->setContentsMargins(0, 0, 0, 0);
+  contentLayout->setSpacing(5);
   mainLayout->addLayout(contentLayout);
 
   WebKitWidget *TrackPlayerInfo = new WebKitWidget(nullptr, nullptr);
@@ -91,6 +94,8 @@ int main(int argc, char **argv) {
   // Left side: Main content area
   {
     QVBoxLayout *leftPanel = new QVBoxLayout();
+    leftPanel->setContentsMargins(0, 0, 0, 0);
+    leftPanel->setSpacing(5);
     contentLayout->addLayout(leftPanel, 1); // 1/3 of horizontal space
 
     // Track list and filter
@@ -105,7 +110,8 @@ int main(int argc, char **argv) {
       // Left side of player (Cover art and controls)
       {
         QVBoxLayout *playerLeft = new QVBoxLayout();
-        playerSection->addLayout(playerLeft);
+        playerLeft->setContentsMargins(0, 0, 0, 0);
+        playerLeft->setSpacing(5);
 
         CoverArtLabel *coverArt = new CoverArtLabel();
         QObject::connect(server, &HttpWorker::cover_art_changed, coverArt,
@@ -128,6 +134,8 @@ int main(int argc, char **argv) {
       // Right side of player (Track info)
       {
         QVBoxLayout *playerRight = new QVBoxLayout();
+        playerRight->setContentsMargins(0, 0, 0, 0);
+        playerRight->setSpacing(5);
         playerSection->addLayout(playerRight);
         playerRight->addWidget(TrackPlayerInfo);
       }
@@ -149,6 +157,8 @@ int main(int argc, char **argv) {
   QObject::connect(&app, &QApplication::aboutToQuit, server,
                    &HttpWorker::deleteLater);
 
+  window.setMinimumSize(WINDOW_MIN_W, WINDOW_MIN_H);
+  window.setMaximumSize(WINDOW_MIN_W, WINDOW_MIN_H);
   window.show();
   return app.exec();
 }

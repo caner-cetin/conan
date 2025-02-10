@@ -387,7 +387,7 @@ issues never ends...
 
 ### Gtk-WARNING **: cannot open display on macos
 
-install https://www.xquartz.org then relaunch the app
+install https://www.xquartz.org (or `brew install --cask xquartz`) then relaunch the app
 
 ### windows toolchains (mingw, etc) does not work. 
 

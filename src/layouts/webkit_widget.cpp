@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <QResizeEvent>
 #include <QTimer>
+#include <QVBoxLayout>
 #include <cairo/cairo.h>
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
@@ -15,11 +16,11 @@
 #include <qwindow.h>
 #include <string>
 #include <webkit2/webkit2.h>
-
 struct WebKitWidget::Private {
   WebKitWebView *webView{nullptr};
   GtkWidget *gtkContainer{nullptr}; // GTK container for the WebView
   GtkWidget *gtkWindow{nullptr}; // Temporary GTK window to anchor the container
+  RenderWidget *renderWidget{nullptr};
   int width{0};
   int height{0};
 };
@@ -46,81 +47,81 @@ WebKitWidget::~WebKitWidget() {
 
 bool WebKitWidget::initialize() {
   logger->debug("Initializing WebKitWidget");
-  logger->debug("Environment variables set: LIBGL_ALWAYS_SOFTWARE={}, "
-                "GALLIUM_DRIVER={}, QT_QPA_PLATFORM={}",
-                getenv("LIBGL_ALWAYS_SOFTWARE"), getenv("GALLIUM_DRIVER"),
-                getenv("QT_QPA_PLATFORM"));
 
+  // Initialize GTK
   gtk_init(nullptr, nullptr);
 
-  // Create the WebView
-  d->webView = WEBKIT_WEB_VIEW(g_object_ref(webkit_web_view_new()));
+  // Create WebView
+  d->webView = WEBKIT_WEB_VIEW(webkit_web_view_new());
   if (!d->webView || !WEBKIT_IS_WEB_VIEW(d->webView)) {
     logger->error("Failed to create WebKit view");
     return false;
   }
-  logger->debug("WebKit WebView created successfully");
 
-  // Create a GTK container for the WebView
-  d->gtkContainer = gtk_fixed_new();
-  gtk_container_add(GTK_CONTAINER(d->gtkContainer), GTK_WIDGET(d->webView));
+  // Create a container for the WebView using QVBoxLayout
+  QVBoxLayout *layout = new QVBoxLayout(this);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
 
-  // Create a temporary GTK window to anchor the container
-  d->gtkWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-  gtk_window_set_decorated(GTK_WINDOW(d->gtkWindow), FALSE);
-  gtk_window_set_resizable(GTK_WINDOW(d->gtkWindow), FALSE);
-  gtk_container_add(GTK_CONTAINER(d->gtkWindow), d->gtkContainer);
+  // Create an offscreen window for the WebKit view
+  d->gtkWindow = gtk_offscreen_window_new();
+  gtk_container_add(GTK_CONTAINER(d->gtkWindow), GTK_WIDGET(d->webView));
+
+  // Show the WebKit widget
   gtk_widget_show_all(d->gtkWindow);
+  gtk_widget_realize(d->gtkWindow);
 
-  // Ensure the GTK widget is realized (i.e., its window is created)
-  if (!gtk_widget_get_realized(d->gtkContainer)) {
-    gtk_widget_realize(d->gtkContainer);
-  }
+  // Create our custom render widget
+  d->renderWidget = new RenderWidget(this);
+  d->renderWidget->setFixedSize(width(), height());
 
-  // Get the native window ID (WId) from the GTK widget
-  GdkWindow *gdkWindow = gtk_widget_get_window(d->gtkContainer);
-  if (!gdkWindow) {
-    logger->error("Failed to get GDK window from GTK widget");
-    return false;
-  }
+  // Add the render widget to our layout
+  layout->addWidget(d->renderWidget);
 
-  // Convert GdkWindow* to WId (unsigned long long)
-  WId wid =
-      GDK_WINDOW_XID(gdkWindow); // Use GDK_WINDOW_HANDLE for non-X11 platforms
+  // Connect the GTK widget's draw signal
+  g_signal_connect(
+      d->gtkWindow, "damage-event",
+      G_CALLBACK(+[](GtkWidget *widget, GdkEventExpose *event, gpointer data) {
+        WebKitWidget *self = static_cast<WebKitWidget *>(data);
+        self->updateRender();
+        return TRUE;
+      }),
+      this);
 
-  // Embed the GTK container into the QWidget
-  QWindow *window = QWindow::fromWinId(wid);
-  if (!window) {
-    logger->error("Failed to create QWindow from WId");
-    return false;
-  }
-
-  QWidget *container = QWidget::createWindowContainer(window, this);
-  if (!container) {
-    logger->error("Failed to create container widget");
-    return false;
-  }
-  container->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-  container->setStyleSheet("background: transparent;");
-  container->setGeometry(0, 0, width(), height());
-  container->setFixedSize(width(), height());
-  logger->debug("Container created with geometry: {}x{} at ({},{})",
-                container->width(), container->height(), container->x(),
-                container->y());
-  container->setUpdatesEnabled(true);
   // Configure WebKit settings
   WebKitSettings *settings = webkit_web_view_get_settings(d->webView);
   webkit_settings_set_enable_javascript(settings, TRUE);
   webkit_settings_set_enable_webgl(settings, TRUE);
-  webkit_settings_set_hardware_acceleration_policy(
-      settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS);
 
+  // Set transparent background
   GdkRGBA background = {0.0, 0.0, 0.0, 0.0};
   webkit_web_view_set_background_color(d->webView, &background);
-  gtk_widget_set_app_paintable(GTK_WIDGET(d->webView), FALSE);
-  logger->debug("Configured WebKit settings");
+
   updateWebViewSize();
   return true;
+}
+
+void WebKitWidget::updateRender() {
+  if (!d->gtkWindow || !d->renderWidget)
+    return;
+
+  cairo_surface_t *surface =
+      gtk_offscreen_window_get_surface(GTK_OFFSCREEN_WINDOW(d->gtkWindow));
+  if (!surface)
+    return;
+
+  // Get the surface dimensions
+  int width = cairo_image_surface_get_width(surface);
+  int height = cairo_image_surface_get_height(surface);
+
+  // Create a QImage from the cairo surface data
+  unsigned char *data = cairo_image_surface_get_data(surface);
+  QImage image(data, width, height, cairo_image_surface_get_stride(surface),
+               QImage::Format_ARGB32_Premultiplied);
+
+  // Update our render widget with the new image
+  d->renderWidget->setImage(
+      image.copy()); // Make a copy since the cairo data might be temporary
 }
 
 void WebKitWidget::updateWebViewSize() {
@@ -291,6 +292,13 @@ void WebKitWidget::scheduleRetry() {
   }
 
   retry_timer->start(1000); // 1 second delay
+}
+
+void RenderWidget::paintEvent(QPaintEvent *) {
+  if (image.isNull())
+    return;
+  QPainter painter(this);
+  painter.drawImage(rect(), image);
 }
 
 // ⠀⠀⠀⠀⠀⢀⠄⠄⠀⢀⠎⠀⠠⢀⡴⢣⠗⠀⠀⡌⠀⢀⡞⠁⡌⠀⠀⠀⠀⠀⡀⠀⠈⠢⡄⢠⠐⣀⢂⡑⢆⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀

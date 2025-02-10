@@ -44,5 +44,26 @@ private:
   void initLogger() {
     logger = spdlog::default_logger()->clone("WebKitWidget");
   }
+  void updateRender();
 };
+
+class RenderWidget : public QWidget {
+public:
+  explicit RenderWidget(QWidget *parent = nullptr) : QWidget(parent) {
+    setAttribute(Qt::WA_OpaquePaintEvent);
+    setAttribute(Qt::WA_NoSystemBackground);
+  }
+
+  void setImage(const QImage &img) {
+    image = img;
+    update();
+  }
+
+protected:
+  void paintEvent(QPaintEvent *);
+
+private:
+  QImage image;
+};
+
 #endif

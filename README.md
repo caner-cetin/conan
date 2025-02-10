@@ -14,6 +14,7 @@ smol music recommendation engine based on local library folders. (**WORK IN PROG
   - [try package repos first](#try-package-repos-first)
   - [use clang](#use-clang)
   - [dependencies](#dependencies)
+  - [run](#run)
   - [things may help you in development](#things-may-help-you-in-development)
 - [problems, todos, and many more rants](#problems-todos-and-many-more-rants)
   - [Gtk-WARNING \*\*: cannot open display on macos](#gtk-warning--cannot-open-display-on-macos)
@@ -70,7 +71,6 @@ sudo apt-get install \
     libchromaprint-dev \
     libspdlog-dev \
     libfmt-dev \
-    libtagc0-dev \
     libva-drm2 \
     libbz2-dev \
     liblzma-dev \
@@ -228,8 +228,6 @@ python3 update_glslang_sources.py
 BUILD_DIR="build"
 cmake -B $BUILD_DIR -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$(pwd)/install"
 make -j4 install
-sudo ln -s /usr/local/bin/glslang /usr/bin/glslang
-sudo ln -s /usr/local/bin/spirv-remap /usr/bin/spirv-remap
 ```
 
 </details>
@@ -272,31 +270,26 @@ sudo ninja install
 
 <details>
 
-<summary>crow</summary>
-
-```bash
-wget https://github.com/CrowCpp/Crow/releases/download/v1.2.0/Crow-1.2.0-Linux.deb 
-dpkg -i Crow-1.2.0-Linux.deb
-cp -r /usr/include/crow src/include
-sudo rm -rf /usr/include/crow
-```
-
-</details>
-
-<details>
-
 <summary>taglib</summary>
 
+**macos**
 ```bash
-wget https://taglib.org/releases/taglib-2.0.2.tar.gz
-tar -xf taglib-2.0.2.tar.gz
-cd taglib-2.0.2
-cmake -DCMAKE_BUILD_TYPE=Release . 
-make
-sudo make install
+brew install taglib
 ```
-
+**ubuntu**
+```bash
+sudo apt-get install libtagc0-dev
+```
 </details>
+
+### run
+
+```bash
+just clean configure
+just build release
+# or
+just build debug
+```
 
 ### things may help you in development
 
@@ -314,21 +307,6 @@ chmod +x generate_assets.sh
 ./generate_assets.py
 ```
 
-
-
-```cpp
-#include "assets/no_cover_art.h"
-#include <QMovie>
-#include <QByteArray>
-
-QByteArray gifData(reinterpret_cast<const char*>(Resources::NoCoverArtGif), Resources::noCoverArtGif_size);
-QMovie *movie = new QMovie();
-movie->setDevice(new QBuffer(&gifData));
-movie->start();
-
-QLabel *label = new QLabel();
-label->setMovie(movie);
-```
 
 </details>
 
